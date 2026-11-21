@@ -1,0 +1,17 @@
+{
+  "name": "astrocitas",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AstroCitas — agenda de citas local-first y autohospedable para negocios de servicios",
+  "license": "AGPL-3.0-or-later",
+  "packageManager": "pnpm@10.28.0",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "dev": "pnpm --filter @astrocitas/web dev",
+    "build": "pnpm -r --filter ./packages/* --filter ./apps/web run build",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test",
+    "e2e": "pnpm --filter @astrocitas/web e2e",
+    "screenshots": "node scripts/screenshots.mjs"
+  }
+}

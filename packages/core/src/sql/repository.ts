@@ -1,0 +1,376 @@
+import type { z } from 'zod';
+import * as S from '../types';
+import type { Appointment, Business, Client, EntityName, Input, Service, Staff, TimeOff, WaitlistEntry } from '../types';
+import {
+  ConflictError,
+  ValidationError,
+  type AppointmentQuery,
+  type ClientStats,
+  type DataAdapter,
+  type SaveOptions,
+  type SeriesResult,
+} from '../adapter';
+import { findConflicts, type Conflict } from '../slots';
+import { expandRecurrence, type RecurrenceRule } from '../recurrence';
+import { BACKUP_FORMAT, BACKUP_VERSION, isBackupFile, type BackupFile } from '../backup';
+import { SerialDb, type SqlDriver, type SqlValue } from './driver';
+import { migrate, SCHEMA_VERSION } from './migrations';
+import { entityToParams, rowToEntity, TABLES, upsertSql } from './tables';
+
+export interface SqlAdapterOptions {
+  now?: () => number;
+  newId?: () => string;
+}
+
+const SCHEMAS: Record<EntityName, z.ZodType> = {
+  business: S.Business,
+  staff: S.Staff,
+  services: S.Service,
+  clients: S.Client,
+  timeOff: S.TimeOff,
+  appointments: S.Appointment,
+  waitlist: S.WaitlistEntry,
+};
+
+/** Orden de inserción que respeta claves foráneas. */
+const ENTITY_ORDER: EntityName[] = ['business', 'staff', 'services', 'clients', 'timeOff', 'appointments', 'waitlist'];
+
+function parseOrThrow<T>(schema: z.ZodType, value: unknown): T {
+  const r = schema.safeParse(value);
+  if (!r.success) {
+    throw new ValidationError(r.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })));
+  }
+  return r.data as T;
+}
+
+/**
+ * Implementación de DataAdapter sobre SQLite. Es el corazón del modo LOCAL y la reutiliza
+ * el servidor autohospedado cuando usa SQLite: misma lógica, mismo esquema, mismas validaciones.
+ */
+export class SqlAdapter implements DataAdapter {
+  readonly mode = 'local' as const;
+  readonly db: SerialDb;
+  private now: () => number;
+  private newId: () => string;
+
+  private constructor(driver: SqlDriver, opts: SqlAdapterOptions) {
+    this.db = new SerialDb(driver);
+    this.now = opts.now ?? Date.now;
+    this.newId = opts.newId ?? (() => crypto.randomUUID());
+  }
+
+  static async open(driver: SqlDriver, opts: SqlAdapterOptions = {}): Promise<SqlAdapter> {
+    const a = new SqlAdapter(driver, opts);
+    await a.db.exec('PRAGMA foreign_keys = ON');
+    await migrate(a.db);
+    return a;
+  }
+
+  // ---------- genéricos ----------
+
+  private async listAll<T>(entity: EntityName, where = 'deleted_at IS NULL', params: SqlValue[] = [], order = ''): Promise<T[]> {
+    const rows = await this.db.all(`SELECT * FROM ${TABLES[entity].table} WHERE ${where} ${order}`, params);
+    return rows.map((r) => rowToEntity<T>(entity, r));
+  }
+
+  private async getById<T>(entity: EntityName, id: string): Promise<T | null> {
+    const row = await this.db.get(`SELECT * FROM ${TABLES[entity].table} WHERE id = ?`, [id]);
+    return row ? rowToEntity<T>(entity, row) : null;
+  }
+
+  /** Completa marcas de tiempo, valida con Zod y hace upsert. */
+  private async prepare<T extends { id: string }>(entity: EntityName, input: Record<string, unknown>): Promise<T> {
+    const now = this.now();
+    const existing = input.id ? await this.getById<Record<string, unknown>>(entity, input.id as string) : null;
+    const merged = {
+      ...(existing ?? {}),
+      ...input,
+      id: (input.id as string) ?? this.newId(),
+      createdAt: (existing?.createdAt as number) ?? now,
+      updatedAt: now,
+      deletedAt: (input.deletedAt as number | null | undefined) ?? null,
+    };
+    return parseOrThrow<T>(SCHEMAS[entity], merged);
+  }
+
+  private async write(entity: EntityName, value: Record<string, unknown>, tx?: SqlDriver) {
+    const sql = upsertSql(entity);
+    const params = entityToParams(entity, value);
+    try {
+      if (tx) await tx.run(sql, params);
+      else await this.db.run(sql, params);
+    } catch (e) {
+      if (String((e as Error)?.message ?? e).includes('ASTRO_OVERLAP')) {
+        throw new ConflictError([{ kind: 'overlap', level: 'error' }]);
+      }
+      throw e;
+    }
+  }
+
+  private async save<T extends { id: string }>(entity: EntityName, input: Record<string, unknown>): Promise<T> {
+    const value = await this.prepare<T>(entity, input);
+    await this.write(entity, value as unknown as Record<string, unknown>);
+    return value;
+  }
+
+  // ---------- negocio ----------
+
+  async getBusiness(): Promise<Business | null> {
+    const list = await this.listAll<Business>('business', 'deleted_at IS NULL', [], 'ORDER BY created_at LIMIT 1');
+    return list[0] ?? null;
+  }
+
+  async saveBusiness(input: Input<typeof S.Business>): Promise<Business> {
+    const current = await this.getBusiness();
+    return this.save<Business>('business', { ...input, id: input.id ?? current?.id });
+  }
+
+  // ---------- profesionales y servicios ----------
+
+  listStaff(opts: { includeInactive?: boolean } = {}): Promise<Staff[]> {
+    return this.listAll<Staff>(
+      'staff',
+      opts.includeInactive ? 'deleted_at IS NULL' : 'deleted_at IS NULL AND active = 1',
+      [],
+      'ORDER BY sort, name COLLATE NOCASE',
+    );
+  }
+  saveStaff(input: Input<typeof S.Staff>) {
+    return this.save<Staff>('staff', input);
+  }
+
+  listServices(opts: { includeInactive?: boolean } = {}): Promise<Service[]> {
+    return this.listAll<Service>(
+      'services',
+      opts.includeInactive ? 'deleted_at IS NULL' : 'deleted_at IS NULL AND active = 1',
+      [],
+      'ORDER BY sort, category, name COLLATE NOCASE',
+    );
+  }
+  saveService(input: Input<typeof S.Service>) {
+    return this.save<Service>('services', input);
+  }
+
+  // ---------- clientes ----------
+
+  async listClients(opts: { search?: string; limit?: number } = {}): Promise<Client[]> {
+    const limit = opts.limit ?? 500;
+    const q = opts.search?.trim();
+    if (!q) return this.listAll<Client>('clients', 'deleted_at IS NULL', [], `ORDER BY name COLLATE NOCASE LIMIT ${limit}`);
+    const like = `%${q.replace(/[%_]/g, '')}%`;
+    const digits = q.replace(/\D/g, '');
+    const rows = await this.db.all(
+      `SELECT * FROM clients WHERE deleted_at IS NULL AND (name LIKE ? OR email LIKE ? OR tags LIKE ?${
+        digits.length >= 3 ? " OR REPLACE(REPLACE(phone, ' ', ''), '+', '') LIKE ?" : ''
+      }) ORDER BY name COLLATE NOCASE LIMIT ${limit}`,
+      digits.length >= 3 ? [like, like, like, `%${digits}%`] : [like, like, like],
+    );
+    return rows.map((r) => rowToEntity<Client>('clients', r));
+  }
+  getClient(id: string) {
+    return this.getById<Client>('clients', id);
+  }
+  saveClient(input: Input<typeof S.Client>) {
+    return this.save<Client>('clients', input);
+  }
+
+  async clientStats(id: string): Promise<ClientStats> {
+    const now = this.now();
+    const r = await this.db.get<Record<string, number | null>>(
+      `SELECT
+        SUM(CASE WHEN status IN ('completed','booked','confirmed') AND starts_at < ? THEN 1 ELSE 0 END) AS visits,
+        SUM(CASE WHEN status IN ('booked','confirmed') AND starts_at >= ? THEN 1 ELSE 0 END) AS upcoming,
+        SUM(CASE WHEN status = 'no_show' THEN 1 ELSE 0 END) AS no_shows,
+        SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancellations,
+        SUM(CASE WHEN status <> 'cancelled' THEN paid_cents ELSE 0 END) AS spent,
+        MAX(CASE WHEN status IN ('completed','booked','confirmed') AND starts_at < ? THEN starts_at END) AS last_visit,
+        MIN(CASE WHEN status IN ('booked','confirmed') AND starts_at >= ? THEN starts_at END) AS next_visit
+      FROM appointments WHERE client_id = ? AND deleted_at IS NULL`,
+      [now, now, now, now, id],
+    );
+    return {
+      visits: Number(r?.visits ?? 0),
+      upcoming: Number(r?.upcoming ?? 0),
+      noShows: Number(r?.no_shows ?? 0),
+      cancellations: Number(r?.cancellations ?? 0),
+      totalSpentCents: Number(r?.spent ?? 0),
+      lastVisitAt: r?.last_visit != null ? Number(r.last_visit) : null,
+      nextVisitAt: r?.next_visit != null ? Number(r.next_visit) : null,
+    };
+  }
+
+  // ---------- ausencias ----------
+
+  listTimeOff(range: { from: number; to: number }): Promise<TimeOff[]> {
+    return this.listAll<TimeOff>(
+      'timeOff',
+      'deleted_at IS NULL AND starts_at < ? AND ends_at > ?',
+      [range.to, range.from],
+      'ORDER BY starts_at',
+    );
+  }
+  saveTimeOff(input: Input<typeof S.TimeOff>) {
+    return this.save<TimeOff>('timeOff', input);
+  }
+
+  // ---------- citas ----------
+
+  listAppointments(q: AppointmentQuery): Promise<Appointment[]> {
+    const where = ['deleted_at IS NULL', 'starts_at < ?', 'ends_at > ?'];
+    const params: (string | number)[] = [q.to, q.from];
+    if (q.staffId) {
+      where.push('staff_id = ?');
+      params.push(q.staffId);
+    }
+    if (q.clientId) {
+      where.push('client_id = ?');
+      params.push(q.clientId);
+    }
+    if (!q.includeCancelled) where.push(`status <> 'cancelled'`);
+    return this.listAll<Appointment>('appointments', where.join(' AND '), params, 'ORDER BY starts_at');
+  }
+
+  async listClientAppointments(clientId: string): Promise<Appointment[]> {
+    return this.listAll<Appointment>(
+      'appointments',
+      'deleted_at IS NULL AND client_id = ?',
+      [clientId],
+      'ORDER BY starts_at DESC',
+    );
+  }
+
+  getAppointment(id: string) {
+    return this.getById<Appointment>('appointments', id);
+  }
+
+  private async conflictsFor(a: Appointment): Promise<Conflict[]> {
+    const business = await this.getBusiness();
+    const tz = business?.timezone ?? 'Europe/Madrid';
+    const margin = 24 * 3600_000;
+    const [appointments, timeOff, staff] = await Promise.all([
+      this.listAppointments({ from: a.startsAt - margin, to: a.endsAt + margin, staffId: a.staffId }),
+      this.listTimeOff({ from: a.startsAt, to: a.endsAt }),
+      this.getById<Staff>('staff', a.staffId),
+    ]);
+    return findConflicts(a, { staff: staff ?? undefined, appointments, timeOff, timezone: tz });
+  }
+
+  async checkAppointment(input: Input<typeof S.Appointment>): Promise<Conflict[]> {
+    const a = await this.prepare<Appointment>('appointments', input);
+    return this.conflictsFor(a);
+  }
+
+  async saveAppointment(input: Input<typeof S.Appointment>, opts: SaveOptions = {}): Promise<Appointment> {
+    const a = await this.prepare<Appointment>('appointments', input);
+    const conflicts = await this.conflictsFor(a);
+    if (conflicts.some((c) => c.level === 'error') || (!opts.force && conflicts.length)) {
+      throw new ConflictError(conflicts);
+    }
+    await this.write('appointments', a as unknown as Record<string, unknown>);
+    return a;
+  }
+
+  async createSeries(
+    input: Input<typeof S.Appointment>,
+    rule: RecurrenceRule,
+    opts: SaveOptions = {},
+  ): Promise<SeriesResult> {
+    const business = await this.getBusiness();
+    const tz = business?.timezone ?? 'Europe/Madrid';
+    const duration = input.endsAt - input.startsAt;
+    const seriesId = this.newId();
+    const result: SeriesResult = { created: [], skipped: [] };
+    for (const start of expandRecurrence(input.startsAt, rule, tz)) {
+      try {
+        const a = await this.saveAppointment(
+          { ...input, id: undefined, seriesId, startsAt: start, endsAt: start + duration },
+          opts,
+        );
+        result.created.push(a);
+      } catch (e) {
+        if (e instanceof ConflictError) result.skipped.push({ startsAt: start, conflicts: e.conflicts });
+        else throw e;
+      }
+    }
+    return result;
+  }
+
+  // ---------- lista de espera ----------
+
+  listWaitlist(): Promise<WaitlistEntry[]> {
+    return this.listAll<WaitlistEntry>('waitlist', `deleted_at IS NULL AND status = 'waiting'`, [], 'ORDER BY created_at');
+  }
+  saveWaitlist(input: Input<typeof S.WaitlistEntry>) {
+    return this.save<WaitlistEntry>('waitlist', input);
+  }
+
+  // ---------- borrado / deshacer ----------
+
+  async remove(entity: EntityName, id: string): Promise<void> {
+    const now = this.now();
+    await this.db.run(`UPDATE ${TABLES[entity].table} SET deleted_at = ?, updated_at = ? WHERE id = ?`, [now, now, id]);
+  }
+
+  async restore(entity: EntityName, id: string): Promise<void> {
+    try {
+      await this.db.run(`UPDATE ${TABLES[entity].table} SET deleted_at = NULL, updated_at = ? WHERE id = ?`, [
+        this.now(),
+        id,
+      ]);
+    } catch (e) {
+      if (String((e as Error)?.message).includes('ASTRO_OVERLAP')) {
+        throw new ConflictError([{ kind: 'overlap', level: 'error' }]);
+      }
+      throw e;
+    }
+  }
+
+  // ---------- exportar / importar ----------
+
+  async exportAll(): Promise<BackupFile> {
+    const data = {} as BackupFile['data'];
+    for (const e of ENTITY_ORDER) {
+      (data as Record<string, unknown[]>)[e] = await this.listAll(e, '1 = 1', [], 'ORDER BY created_at');
+    }
+    return {
+      format: BACKUP_FORMAT,
+      version: BACKUP_VERSION,
+      schemaVersion: SCHEMA_VERSION,
+      exportedAt: this.now(),
+      app: 'AstroCitas',
+      data,
+    };
+  }
+
+  async importAll(file: BackupFile, opts: { mode: 'replace' | 'merge' } = { mode: 'replace' }): Promise<void> {
+    if (!isBackupFile(file)) throw new Error('El archivo no es una copia de AstroCitas válida');
+    if (file.version > BACKUP_VERSION) throw new Error('La copia es de una versión más nueva de AstroCitas');
+    // Validar todo antes de tocar la base de datos.
+    const parsed: [EntityName, Record<string, unknown>][] = [];
+    for (const e of ENTITY_ORDER) {
+      for (const item of (file.data as Record<string, unknown[]>)[e] ?? []) {
+        parsed.push([e, parseOrThrow(SCHEMAS[e], item)]);
+      }
+    }
+    await this.db.transaction(async (tx) => {
+      if (opts.mode === 'replace') {
+        for (const e of [...ENTITY_ORDER].reverse()) await tx.exec(`DELETE FROM ${TABLES[e].table}`);
+      }
+      for (const [e, v] of parsed) {
+        if (opts.mode === 'merge') {
+          const cur = await tx.all<{ updated_at: number }>(`SELECT updated_at FROM ${TABLES[e].table} WHERE id = ?`, [
+            v.id as string,
+          ]);
+          if (cur[0] && Number(cur[0].updated_at) >= (v.updatedAt as number)) continue;
+        }
+        await this.write(e, v, tx);
+      }
+    });
+  }
+
+  async wipe(): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      for (const e of [...ENTITY_ORDER].reverse()) await tx.exec(`DELETE FROM ${TABLES[e].table}`);
+    });
+  }
+}
