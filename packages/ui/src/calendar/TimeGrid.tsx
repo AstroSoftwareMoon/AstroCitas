@@ -172,14 +172,14 @@ export function TimeGrid(p: TimeGridProps) {
   const colTemplate = { gridTemplateColumns: `repeat(${p.columns.length}, minmax(${p.minColWidth ?? 0}px, 1fr))` };
 
   return (
-    <div ref={scrollRef} className="relative flex-1 overflow-auto" data-testid="time-grid">
+    <div ref={scrollRef} className="relative mx-2 mb-2 flex-1 overflow-auto rounded-[28px] border border-white/[0.07] bg-white/[0.025] sm:mx-3 md:mb-0" data-testid="time-grid">
       <div className="min-w-fit">
         {/* Cabeceras */}
-        <div className="sticky top-0 z-20 flex border-b border-slate-200 bg-white/95 backdrop-blur dark:border-white/10 dark:bg-space-900/95">
+        <div className="sticky top-0 z-20 flex border-b border-white/[0.07] bg-[#0b0b0c]/80 backdrop-blur-2xl backdrop-saturate-150">
           <div className="w-14 shrink-0" />
           <div className="grid flex-1" style={colTemplate}>
             {p.columns.map((c) => (
-              <div key={c.key} className="border-l border-slate-100 px-2 py-2 text-center dark:border-white/5">
+              <div key={c.key} className="border-l border-white/[0.05] px-2 py-2.5 text-center">
                 {c.header}
               </div>
             ))}
@@ -190,7 +190,7 @@ export function TimeGrid(p: TimeGridProps) {
           {/* Regla horaria */}
           <div className="relative w-14 shrink-0" style={{ height: totalHeight }}>
             {hours.map((m) => (
-              <div key={m} className="absolute right-2 -translate-y-1/2 text-[11px] tabular-nums text-slate-400" style={{ top: (m - p.startMin) * ppm }}>
+              <div key={m} className="absolute right-2 -translate-y-1/2 text-[11px] tabular-nums text-white/40" style={{ top: (m - p.startMin) * ppm }}>
                 {m === p.startMin ? '' : minutesToHHMM(m)}
               </div>
             ))}
@@ -202,7 +202,7 @@ export function TimeGrid(p: TimeGridProps) {
               return (
                 <div
                   key={col.key}
-                  className={cx('relative border-l border-slate-100 dark:border-white/5', col.isToday && 'bg-astro-50/40 dark:bg-astro-500/[0.04]')}
+                  className={cx('relative border-l border-white/[0.05]', col.isToday && 'bg-white/[0.03]')}
                   onClick={(e) => {
                     if (e.target !== e.currentTarget && !(e.target as HTMLElement).dataset.slot) return;
                     const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
@@ -213,19 +213,19 @@ export function TimeGrid(p: TimeGridProps) {
                 >
                   {/* Líneas de horas y medias horas */}
                   {hours.map((m) => (
-                    <div key={m} data-slot="1" className="absolute inset-x-0 border-t border-slate-100 dark:border-white/5" style={{ top: (m - p.startMin) * ppm, height: hourHeight }}>
-                      <div data-slot="1" className="absolute inset-x-0 top-1/2 border-t border-dashed border-slate-100/80 dark:border-white/[0.03]" />
+                    <div key={m} data-slot="1" className="absolute inset-x-0 border-t border-white/[0.06]" style={{ top: (m - p.startMin) * ppm, height: hourHeight }}>
+                      <div data-slot="1" className="absolute inset-x-0 top-1/2 border-t border-dashed border-white/[0.03]" />
                     </div>
                   ))}
                   {/* Fuera de horario */}
                   {invert(col.working, p.startMin, p.endMin).map((r, i) => (
-                    <div key={i} data-slot="1" className="hatch absolute inset-x-0 bg-slate-100/60 dark:bg-white/[0.03]" style={{ top: (r.start - p.startMin) * ppm, height: (r.end - r.start) * ppm }} />
+                    <div key={i} data-slot="1" className="hatch absolute inset-x-0 bg-black/40" style={{ top: (r.start - p.startMin) * ppm, height: (r.end - r.start) * ppm }} />
                   ))}
                   {/* Ausencias */}
                   {col.blocked.map((b, i) => (
                     <div
                       key={`b${i}`}
-                      className="hatch pointer-events-none absolute inset-x-1 flex items-start rounded-lg border border-dashed border-slate-300 bg-slate-200/50 px-2 py-1 text-[11px] text-slate-500 dark:border-white/15 dark:bg-white/5 dark:text-slate-400"
+                      className="hatch pointer-events-none absolute inset-x-1 flex items-start rounded-2xl border border-dashed border-white/15 bg-white/[0.04] px-2 py-1 text-[11px] text-ink-muted"
                       style={{ top: (Math.max(b.start, p.startMin) - p.startMin) * ppm, height: (Math.min(b.end, p.endMin) - Math.max(b.start, p.startMin)) * ppm }}
                     >
                       {b.label}
@@ -233,8 +233,8 @@ export function TimeGrid(p: TimeGridProps) {
                   ))}
                   {/* Hora actual */}
                   {col.isToday && nowMin >= p.startMin && nowMin <= p.endMin && (
-                    <div className="pointer-events-none absolute inset-x-0 z-10 border-t-2 border-red-500" style={{ top: (nowMin - p.startMin) * ppm }}>
-                      <span className="absolute -left-1 -top-[5px] h-2 w-2 rounded-full bg-red-500" />
+                    <div className="pointer-events-none absolute inset-x-0 z-10 border-t-2 border-[#ff2d6f] shadow-[0_0_10px_#ff2d6f]" style={{ top: (nowMin - p.startMin) * ppm }}>
+                      <span className="absolute -left-1 -top-[5px] h-2 w-2 rounded-full bg-[#ff2d6f]" />
                     </div>
                   )}
                   {/* Citas */}
@@ -274,7 +274,7 @@ export function TimeGrid(p: TimeGridProps) {
               const color = colorFor(a, p);
               return (
                 <div
-                  className="pointer-events-none absolute z-30 rounded-lg border-2 px-2 py-1 text-xs font-semibold shadow-xl"
+                  className="glass pointer-events-none absolute z-30 rounded-2xl border-2 px-2 py-1 text-xs font-semibold text-white"
                   style={{
                     top: (start - p.startMin) * ppm,
                     height: dur * ppm,
@@ -346,22 +346,22 @@ function ApptBlock(
       onPointerUp={props.onPointerUp}
       onPointerCancel={props.onPointerCancel}
       className={cx(
-        'group absolute z-[5] cursor-grab touch-manipulation select-none overflow-hidden rounded-lg border-l-[3px] px-1.5 text-left text-xs transition-[opacity,box-shadow] hover:z-10 hover:shadow-md active:cursor-grabbing',
+        'group absolute z-[5] cursor-grab touch-manipulation select-none overflow-hidden rounded-xl border-l-[3px] px-2 text-left text-xs transition-[opacity,box-shadow,transform] hover:z-10 hover:shadow-[0_8px_24px_-8px_rgb(0_0_0/0.8)] active:cursor-grabbing',
         compact ? 'py-0' : 'py-1',
         props.faded && 'opacity-40',
         a.status === 'completed' && 'opacity-70',
         a.status === 'no_show' && 'opacity-60',
       )}
-      style={{ top: props.top, height: props.height, left: props.left, width: props.width, borderColor: color, backgroundColor: alpha(color, 0.14) }}
+      style={{ top: props.top, height: props.height, left: props.left, width: props.width, borderColor: color, background: `linear-gradient(180deg, ${alpha(color, 0.34)}, ${alpha(color, 0.22)})` }}
     >
-      <div className={cx('flex items-center gap-1 font-semibold text-slate-900 dark:text-white', a.status === 'no_show' && 'line-through')}>
-        {a.status === 'confirmed' && <Check size={12} className="shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />}
+      <div className={cx('flex items-center gap-1 font-semibold text-white', a.status === 'no_show' && 'line-through')}>
+        {a.status === 'confirmed' && <Check size={12} className="shrink-0 text-emerald-300" aria-hidden />}
         {a.seriesId && <Repeat size={11} className="shrink-0 opacity-60" aria-hidden />}
         <span className="truncate">{client?.name ?? svc?.name ?? '—'}</span>
-        {compact && <span className="ml-auto shrink-0 font-normal tabular-nums text-slate-600 dark:text-slate-300">{minutesToHHMM(startMin)}</span>}
+        {compact && <span className="ml-auto shrink-0 font-normal tabular-nums text-white/70">{minutesToHHMM(startMin)}</span>}
       </div>
       {!compact && (
-        <div className="truncate text-slate-600 dark:text-slate-300">
+        <div className="truncate text-white/70">
           <span className="tabular-nums">{minutesToHHMM(startMin)}</span> · {svc?.name}
         </div>
       )}

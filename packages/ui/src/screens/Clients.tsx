@@ -73,7 +73,7 @@ export function ClientsScreen({ selectedId }: { selectedId?: string }) {
         }
       >
         <div className="relative mt-3">
-          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
           <Input ref={searchRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('common.search')} className="pl-9" aria-label={t('common.search')} />
         </div>
       </PageHeader>
@@ -95,12 +95,12 @@ export function ClientsScreen({ selectedId }: { selectedId?: string }) {
             }
           />
         ) : (
-          <ul className="divide-y divide-slate-100 dark:divide-white/5">
+          <ul className="divide-y divide-white/[0.06]">
             {clients.map((c) => (
               <li key={c.id}>
                 <a
                   href={`#/clients/${c.id}`}
-                  className={cx('flex items-center gap-3 px-4 py-3 transition hover:bg-slate-100/70 dark:hover:bg-white/5 sm:px-6', c.id === selectedId && 'bg-astro-50 dark:bg-astro-500/10')}
+                  className={cx('mx-2 flex items-center gap-3 rounded-3xl px-3 py-2.5 transition hover:bg-white/[0.06] sm:mx-3', c.id === selectedId && 'bg-white/[0.09]')}
                 >
                   <Avatar name={c.name} color={colorFromName(c.name)} />
                   <div className="min-w-0 flex-1">
@@ -108,7 +108,7 @@ export function ClientsScreen({ selectedId }: { selectedId?: string }) {
                       <span className="truncate font-medium">{c.name}</span>
                       {isBirthday(c.birthday, today) && <Cake size={14} className="text-pink-500" aria-label={t('clients.birthday')} />}
                     </div>
-                    <div className="truncate text-xs text-slate-500 dark:text-slate-400">{c.phone || c.email || '—'}</div>
+                    <div className="truncate text-xs text-ink-muted">{c.phone || c.email || '—'}</div>
                   </div>
                   <div className="hidden gap-1 sm:flex">
                     {c.tags.slice(0, 2).map((tag) => (
@@ -127,7 +127,7 @@ export function ClientsScreen({ selectedId }: { selectedId?: string }) {
   return (
     <div className="grid h-full min-h-0 lg:grid-cols-[minmax(320px,420px)_1fr]">
       {list}
-      <div className={cx('min-h-0 overflow-y-auto border-l border-slate-200/70 dark:border-white/10', !selectedId && 'hidden lg:block')}>
+      <div className={cx('min-h-0 overflow-y-auto lg:m-3 lg:ml-0 lg:rounded-[32px] lg:border lg:border-white/[0.07] lg:bg-white/[0.025]', !selectedId && 'hidden lg:block')}>
         {selectedId ? (
           <ClientDetail key={selectedId} id={selectedId === 'new' ? null : selectedId} />
         ) : (
@@ -208,7 +208,7 @@ function ClientDetail({ id }: { id: string | null }) {
         <Avatar name={form.name || '?'} color={colorFromName(form.name ?? '')} size={48} />
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-xl font-semibold">{form.name || t('clients.new')}</h2>
-          {client && <p className="text-sm text-slate-500">{client.phone}</p>}
+          {client && <p className="text-sm text-ink-muted">{client.phone}</p>}
         </div>
         {client && (
           <Button variant="primary" size="sm" icon={<CalendarPlus size={16} />} onClick={() => navigate(`/calendar?new=1&client=${client.id}`)}>
@@ -251,7 +251,7 @@ function ClientDetail({ id }: { id: string | null }) {
             <Textarea value={form.notes ?? ''} onChange={(e) => set('notes', e.target.value)} />
           </Field>
         </div>
-        <div className="border-t border-slate-100 pt-3 dark:border-white/10">
+        <div className="border-t border-white/[0.07] pt-3">
           <Switch checked={!!form.consentReminders} onChange={(v) => set('consentReminders', v)} label={t('clients.consentReminders')} />
           <Switch checked={!!form.consentMarketing} onChange={(v) => set('consentMarketing', v)} label={t('clients.consentMarketing')} />
         </div>
@@ -261,7 +261,7 @@ function ClientDetail({ id }: { id: string | null }) {
               <Button variant="ghost" size="sm" icon={<Download size={16} />} onClick={gdprExport} className="mr-auto">
                 {t('clients.gdprExport')}
               </Button>
-              <Button variant="ghost" size="sm" icon={<Trash2 size={16} />} onClick={remove} className="text-red-600 dark:text-red-400">
+              <Button variant="ghost" size="sm" icon={<Trash2 size={16} />} onClick={remove} className="text-red-300">
                 {t('common.delete')}
               </Button>
             </>
@@ -276,16 +276,16 @@ function ClientDetail({ id }: { id: string | null }) {
         <section className="mt-6">
           <h3 className="mb-2 text-sm font-semibold">{t('clients.history')}</h3>
           {history.length === 0 ? (
-            <p className="text-sm text-slate-500">{t('clients.noHistory')}</p>
+            <p className="text-sm text-ink-muted">{t('clients.noHistory')}</p>
           ) : (
-            <ul className="card divide-y divide-slate-100 dark:divide-white/5">
+            <ul className="card divide-y divide-white/[0.06]">
               {[...history].reverse().map((a) => (
                 <li key={a.id}>
-                  <a href={`#/calendar?appt=${a.id}&view=day&date=${toLocalDate(a.startsAt, biz.timezone)}`} className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-white/5">
+                  <a href={`#/calendar?appt=${a.id}&view=day&date=${toLocalDate(a.startsAt, biz.timezone)}`} className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-white/[0.06]">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: svc.get(a.serviceId)?.color }} />
-                    <span className="w-32 shrink-0 tabular-nums text-slate-600 dark:text-slate-300">{formatDate(a.startsAt, biz.timezone, lang, 'd LLL yy · HH:mm')}</span>
+                    <span className="w-32 shrink-0 tabular-nums text-white/70">{formatDate(a.startsAt, biz.timezone, lang, 'd LLL yy · HH:mm')}</span>
                     <span className="flex-1 truncate">
-                      {svc.get(a.serviceId)?.name} <span className="text-slate-400">· {stf.get(a.staffId)?.name}</span>
+                      {svc.get(a.serviceId)?.name} <span className="text-white/40">· {stf.get(a.staffId)?.name}</span>
                     </span>
                     <StatusBadge status={a.status} />
                   </a>
@@ -302,7 +302,7 @@ function ClientDetail({ id }: { id: string | null }) {
 function Stat({ label, value, tone }: { label: string; value: string; tone?: 'warn' }) {
   return (
     <div className="card px-3 py-2.5">
-      <div className="text-xs text-slate-500 dark:text-slate-400">{label}</div>
+      <div className="text-xs text-ink-muted">{label}</div>
       <div className={cx('mt-0.5 truncate text-lg font-semibold tabular-nums', tone === 'warn' && 'text-amber-600 dark:text-amber-400')}>{value}</div>
     </div>
   );

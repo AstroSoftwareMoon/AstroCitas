@@ -28,13 +28,13 @@ export function MonthGrid(props: {
     new Intl.DateTimeFormat(lang, { weekday: 'short' }).format(new Date(`${addDays(first, i)}T12:00:00Z`)),
   );
   return (
-    <div className="flex flex-1 flex-col overflow-auto p-2 sm:p-4">
-      <div className="grid grid-cols-7 pb-1 text-center text-xs font-medium uppercase tracking-wide text-slate-500">
+    <div className="flex flex-1 flex-col overflow-auto px-2 pb-2 sm:px-3">
+      <div className="grid grid-cols-7 pb-2 text-center text-xs font-medium uppercase tracking-wider text-ink-muted">
         {weekdayNames.map((n) => (
           <div key={n}>{n}</div>
         ))}
       </div>
-      <div className="grid flex-1 grid-cols-7 grid-rows-6 gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200 dark:border-white/10 dark:bg-white/10">
+      <div className="grid flex-1 grid-cols-7 grid-rows-6 gap-1.5">
         {days.map((d) => {
           const list = byDay.get(d) ?? [];
           const inMonth = d.startsWith(month);
@@ -44,14 +44,14 @@ export function MonthGrid(props: {
               key={d}
               onClick={() => props.onDay(d)}
               className={cx(
-                'flex min-h-20 flex-col items-stretch gap-0.5 p-1 text-left transition hover:bg-astro-50 dark:hover:bg-astro-500/10',
-                inMonth ? 'bg-white dark:bg-space-900' : 'bg-slate-50 text-slate-400 dark:bg-space-950',
+                'press flex min-h-20 flex-col items-stretch gap-0.5 rounded-2xl p-1.5 text-left hover:bg-white/[0.09]',
+                inMonth ? 'bg-white/[0.05]' : 'bg-transparent text-white/30',
               )}
             >
               <span
                 className={cx(
                   'mb-0.5 inline-flex h-6 w-6 items-center justify-center self-start rounded-full text-xs font-semibold',
-                  d === props.today && 'bg-astro-600 text-white',
+                  d === props.today && 'bg-white text-black',
                 )}
               >
                 {Number(d.slice(8))}
@@ -66,17 +66,17 @@ export function MonthGrid(props: {
                       e.stopPropagation();
                       props.onOpen(a);
                     }}
-                    className="hidden truncate rounded px-1 text-[11px] text-slate-800 sm:block dark:text-slate-100"
-                    style={{ backgroundColor: alpha(color, 0.16) }}
+                    className="hidden truncate rounded-md px-1.5 text-[11px] text-white sm:block"
+                    style={{ backgroundColor: alpha(color, 0.3) }}
                   >
                     <span className="tabular-nums">{formatTime(a.startsAt, props.tz)}</span>{' '}
                     {a.clientId ? props.clients.get(a.clientId)?.name : props.services.get(a.serviceId)?.name}
                   </span>
                 );
               })}
-              {list.length > 3 && <span className="hidden px-1 text-[11px] text-slate-500 sm:block">{t('cal.more', { n: list.length - 3 })}</span>}
+              {list.length > 3 && <span className="hidden px-1 text-[11px] text-ink-muted sm:block">{t('cal.more', { n: list.length - 3 })}</span>}
               {list.length > 0 && (
-                <span className="mt-auto self-start rounded-full bg-astro-100 px-1.5 text-[10px] font-semibold text-astro-700 sm:hidden dark:bg-astro-500/20 dark:text-astro-200">
+                <span className="mt-auto self-start rounded-full bg-white px-1.5 text-[10px] font-semibold text-black sm:hidden">
                   {list.length}
                 </span>
               )}

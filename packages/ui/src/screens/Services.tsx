@@ -35,22 +35,22 @@ export function ServicesScreen() {
           <div className="mx-auto max-w-4xl space-y-6">
             {[...groups.entries()].map(([cat, list]) => (
               <section key={cat}>
-                {groups.size > 1 && <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{cat}</h2>}
+                {groups.size > 1 && <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">{cat}</h2>}
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {list.map((s) => (
-                    <button key={s.id} type="button" onClick={() => setEditing(s)} className="card flex items-start gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md">
+                    <button key={s.id} type="button" onClick={() => setEditing(s)} className="card flex items-start gap-3 p-4 text-left press hover:bg-white/[0.07]">
                       <span className="mt-1 h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="truncate font-medium">{s.name}</span>
                           {!s.active && <Badge>{t('common.inactive')}</Badge>}
                         </div>
-                        <div className="mt-1 flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
+                        <div className="mt-1 flex items-center gap-3 text-sm text-ink-muted">
                           <span className="inline-flex items-center gap-1">
                             <Clock size={14} /> {s.durationMin} {t('common.min')}
                             {s.bufferAfterMin + s.bufferBeforeMin > 0 && <span className="text-xs">(+{s.bufferBeforeMin + s.bufferAfterMin})</span>}
                           </span>
-                          <span className="font-medium text-slate-700 dark:text-slate-200">{formatMoney(s.priceCents, biz.currency, lang)}</span>
+                          <span className="font-medium text-white">{formatMoney(s.priceCents, biz.currency, lang)}</span>
                         </div>
                       </div>
                     </button>
@@ -100,7 +100,7 @@ function ServiceEditor({ draft, onClose }: { draft: Draft; onClose(): void }) {
       footer={
         <>
           {f.id && (
-            <Button variant="ghost" icon={<Trash2 size={16} />} className="mr-auto text-red-600 dark:text-red-400" onClick={remove}>
+            <Button variant="ghost" icon={<Trash2 size={16} />} className="mr-auto text-red-300" onClick={remove}>
               {t('common.delete')}
             </Button>
           )}

@@ -8,7 +8,6 @@ const browser = await chromium.launch({ args: ['--lang=es-ES'] });
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, locale: 'es-ES', timezoneId: 'Europe/Madrid' });
 const page = await ctx.newPage();
 await page.clock.setFixedTime(new Date('2026-11-19T11:40:00+01:00'));
-await page.addInitScript(() => localStorage.setItem('astrocitas.theme', 'light'));
 let n = 0;
 const shot = async (ms = 1200) => page.screenshot({ path: `${dir}/${String(n++).padStart(2, '0')}-${ms}.png` });
 await page.goto(BASE);

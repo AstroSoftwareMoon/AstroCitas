@@ -1,40 +1,39 @@
 import { useEffect, useState } from 'react';
 
-export type Theme = 'light' | 'dark' | 'system';
-const KEY = 'astrocitas.theme';
+/**
+ * La interfaz es siempre negra. Lo único configurable es el cristal: con
+ * "Reducir transparencia" (o la preferencia del sistema) el Liquid Glass pasa a sólido.
+ */
+const KEY = 'astrocitas.reduceGlass';
 
-function read(): Theme {
+function read(): boolean {
   try {
     const v = localStorage.getItem(KEY);
-    if (v === 'light' || v === 'dark' || v === 'system') return v;
+    if (v !== null) return v === '1';
   } catch {
     /* ignore */
   }
-  return 'system';
+  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-transparency: reduce)').matches;
 }
 
-function apply(theme: Theme) {
-  const dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  document.documentElement.classList.toggle('dark', dark);
-  document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+function apply(reduce: boolean) {
+  const root = document.documentElement;
+  root.classList.add('dark');
+  root.classList.toggle('no-glass', reduce);
+  root.style.colorScheme = 'dark';
 }
 
-export function useTheme(): [Theme, (t: Theme) => void] {
-  const [theme, setTheme] = useState<Theme>(read);
+export function useReduceGlass(): [boolean, (v: boolean) => void] {
+  const [reduce, setReduce] = useState(read);
   useEffect(() => {
-    apply(theme);
+    apply(reduce);
     try {
-      localStorage.setItem(KEY, theme);
+      localStorage.setItem(KEY, reduce ? '1' : '0');
     } catch {
       /* ignore */
     }
-    if (theme !== 'system') return;
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const on = () => apply('system');
-    mq.addEventListener('change', on);
-    return () => mq.removeEventListener('change', on);
-  }, [theme]);
-  return [theme, setTheme];
+  }, [reduce]);
+  return [reduce, setReduce];
 }
 
 export function initTheme() {

@@ -44,17 +44,19 @@ export function Onboarding() {
   }
 
   return (
-    <div className="starfield min-h-full bg-space-950 px-4 py-10 text-white">
+    <div className="min-h-full px-4 py-10 text-white">
       <form onSubmit={submit} className="mx-auto w-full max-w-xl animate-pop">
-        <div className="mb-8 flex items-center gap-3">
-          <LogoMark size={40} />
+        <div className="mb-8 flex items-center gap-4">
+          <div className="glass rounded-3xl p-3">
+            <LogoMark size={40} />
+          </div>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{t('onb.title')}</h1>
-            <p className="text-sm text-white/70">{t('onb.subtitle')}</p>
+            <h1 className="text-4xl font-semibold tracking-tight">{t('onb.title')}</h1>
+            <p className="text-ink-muted">{t('onb.subtitle')}</p>
           </div>
         </div>
 
-        <div className="space-y-6 rounded-3xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur sm:p-7">
+        <div className="glass space-y-6 rounded-[32px] p-5 sm:p-7">
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-white/80">{t('onb.name')}</span>
             <Input
@@ -63,7 +65,7 @@ export function Onboarding() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t('onb.namePh')}
-              className="h-12 border-white/20 bg-white/10 text-base text-white placeholder:text-white/40"
+              className="h-12 text-base"
               data-testid="onb-name"
             />
           </label>
@@ -78,8 +80,8 @@ export function Onboarding() {
                   aria-pressed={kind === k}
                   onClick={() => setKind(k)}
                   className={cx(
-                    'flex flex-col items-center gap-1.5 rounded-2xl border px-2 py-3 text-xs font-medium transition',
-                    kind === k ? 'border-astro-300 bg-astro-500/30 text-white' : 'border-white/10 bg-white/5 text-white/75 hover:bg-white/10',
+                    'press flex flex-col items-center gap-1.5 rounded-3xl px-2 py-3.5 text-xs font-medium',
+                    kind === k ? 'bg-white text-black' : 'bg-white/[0.06] text-white/75 hover:bg-white/10',
                   )}
                 >
                   <Icon size={20} />
@@ -98,22 +100,22 @@ export function Onboarding() {
                     value={s}
                     onChange={(e) => setStaff(staff.map((x, j) => (j === i ? e.target.value : x)))}
                     placeholder={t('onb.staffPh')}
-                    className="border-white/20 bg-white/10 text-white placeholder:text-white/40"
+                    className=""
                   />
                   {staff.length > 1 && (
-                    <button type="button" aria-label={t('common.delete')} onClick={() => setStaff(staff.filter((_, j) => j !== i))} className="rounded-xl px-2 text-white/60 hover:bg-white/10">
+                    <button type="button" aria-label={t('common.delete')} onClick={() => setStaff(staff.filter((_, j) => j !== i))} className="rounded-full px-2.5 text-white/60 hover:bg-white/10">
                       <X size={18} />
                     </button>
                   )}
                 </div>
               ))}
-              <button type="button" onClick={() => setStaff([...staff, ''])} className="inline-flex items-center gap-1.5 text-sm text-astro-200 hover:text-white">
+              <button type="button" onClick={() => setStaff([...staff, ''])} className="inline-flex items-center gap-1.5 text-sm text-white/70 hover:text-white">
                 <Plus size={16} /> {t('onb.addStaff')}
               </button>
             </div>
           </fieldset>
 
-          <div className="rounded-2xl bg-white/5 p-3 [&_*]:!text-white/85">
+          <div className="rounded-3xl bg-white/[0.05] px-4 py-3">
             <Switch checked={demo} onChange={setDemo} label={t('onb.demo')} description={t('onb.demoDesc')} />
           </div>
 

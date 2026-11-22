@@ -27,21 +27,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={{ show, error }}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-20 z-[60] flex flex-col items-center gap-2 px-4 sm:bottom-6" aria-live="polite">
+      <div className="pointer-events-none fixed inset-x-0 bottom-28 z-[60] flex flex-col items-center gap-2 px-4 sm:bottom-6" aria-live="polite">
         {items.map((t) => (
           <div
             key={t.id}
             role="status"
             className={cx(
-              'pointer-events-auto flex max-w-md items-center gap-4 rounded-2xl px-4 py-3 text-sm shadow-xl animate-slide-up',
-              t.tone === 'error' ? 'bg-red-600 text-white' : 'bg-slate-900 text-white dark:bg-white dark:text-slate-900',
+              'glass glass-strong pointer-events-auto flex max-w-md items-center gap-4 rounded-full px-5 py-3 text-sm text-white animate-slide-up',
+              t.tone === 'error' && '[--glass-film:rgb(220_38_38/0.55)]',
             )}
           >
             <span>{t.message}</span>
             {t.action && (
               <button
                 type="button"
-                className="font-semibold text-astro-300 hover:underline dark:text-astro-700"
+                className="press rounded-full bg-white px-3 py-1 text-xs font-semibold text-black"
                 onClick={() => {
                   t.action!.onClick();
                   dismiss(t.id);

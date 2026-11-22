@@ -65,6 +65,7 @@ test('datos de ejemplo y navegación por todas las pantallas', async ({ page }) 
     await page.goto(`/${hash}`);
     await expect(page.locator('h1').first()).toBeVisible();
   }
-  await page.getByRole('tab', { name: 'Oscuro' }).click();
   await expect(page.locator('html')).toHaveClass(/dark/);
+  await page.getByRole('switch', { name: 'Reducir transparencia' }).click();
+  await expect(page.locator('html')).toHaveClass(/no-glass/);
 });

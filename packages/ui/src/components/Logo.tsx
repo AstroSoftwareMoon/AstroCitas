@@ -27,9 +27,9 @@ export function LogoMark({ size = 32, className = '', title = 'AstroCitas' }: { 
 
 export function Logo({ className = '' }: { className?: string }) {
   return (
-    <span className={`inline-flex items-center gap-2 text-slate-950 dark:text-white ${className}`}>
+    <span className={`inline-flex items-center gap-2 text-white ${className}`}>
       <LogoMark size={28} />
-      <span className="text-lg font-semibold tracking-tight">AstroCitas</span>
+      <span className="text-xl font-semibold tracking-tight">AstroCitas</span>
     </span>
   );
 }

@@ -44,14 +44,14 @@ export function StaffScreen() {
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               {staff.map((s) => (
-                <button key={s.id} type="button" onClick={() => setEditing(s)} className="card flex items-center gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md">
+                <button key={s.id} type="button" onClick={() => setEditing(s)} className="card flex items-center gap-3 p-4 text-left press hover:bg-white/[0.07]">
                   <Avatar name={s.name} color={s.color} size={44} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate font-medium">{s.name}</span>
                       {!s.active && <Badge>{t('common.inactive')}</Badge>}
                     </div>
-                    <div className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{summarizeHours(s.hours, t)}</div>
+                    <div className="mt-0.5 truncate text-xs text-ink-muted">{summarizeHours(s.hours, t)}</div>
                   </div>
                 </button>
               ))}
@@ -115,7 +115,7 @@ function StaffEditor({ draft, onClose }: { draft: Draft; onClose(): void }) {
       footer={
         <>
           {f.id && (
-            <Button variant="ghost" icon={<Trash2 size={16} />} className="mr-auto text-red-600 dark:text-red-400" onClick={remove}>
+            <Button variant="ghost" icon={<Trash2 size={16} />} className="mr-auto text-red-300" onClick={remove}>
               {t('common.delete')}
             </Button>
           )}
@@ -161,16 +161,16 @@ function StaffEditor({ draft, onClose }: { draft: Draft; onClose(): void }) {
               {t('staff.copyToWeek')}
             </Button>
           </div>
-          <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 dark:divide-white/5 dark:border-white/10">
+          <div className="divide-y divide-white/[0.06] rounded-3xl border border-white/[0.08] bg-white/[0.03]">
             {[1, 2, 3, 4, 5, 6, 7].map((wd) => {
               const ranges = hours.map((h, i) => ({ h, i })).filter((x) => x.h.weekday === wd);
               return (
                 <div key={wd} className="flex flex-wrap items-center gap-2 px-3 py-2">
                   <span className="w-24 text-sm font-medium">{t(`weekday.${wd}` as TKey)}</span>
                   <div className="flex flex-1 flex-wrap items-center gap-2">
-                    {ranges.length === 0 && <span className="text-sm text-slate-400">{t('staff.closed')}</span>}
+                    {ranges.length === 0 && <span className="text-sm text-white/40">{t('staff.closed')}</span>}
                     {ranges.map(({ h, i }) => (
-                      <span key={i} className="inline-flex items-center gap-1 rounded-lg bg-slate-50 p-1 dark:bg-white/5">
+                      <span key={i} className="inline-flex items-center gap-1 rounded-full bg-white/[0.06] p-1">
                         <input type="time" aria-label={t('staff.from')} value={minutesToHHMM(h.start)} onChange={(e) => updateRange(i, { start: hhmmToMinutes(e.target.value) })} className="input h-8 w-24 px-2 py-0" />
                         –
                         <input type="time" aria-label={t('staff.to')} value={minutesToHHMM(h.end)} onChange={(e) => updateRange(i, { end: hhmmToMinutes(e.target.value) })} className="input h-8 w-24 px-2 py-0" />
@@ -199,17 +199,17 @@ function StaffEditor({ draft, onClose }: { draft: Draft; onClose(): void }) {
         {services.length > 0 && (
           <section>
             <h3 className="text-sm font-semibold">{t('staff.services')}</h3>
-            <p className="mb-2 text-xs text-slate-500">{t('staff.servicesHelp')}</p>
+            <p className="mb-2 text-xs text-ink-muted">{t('staff.servicesHelp')}</p>
             <div className="flex flex-wrap gap-2">
               {services.map((s) => {
                 const on = (f.serviceIds ?? []).includes(s.id);
                 return (
-                  <label key={s.id} className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 px-3 py-1.5 text-sm dark:border-white/10">
+                  <label key={s.id} className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-white/[0.07] px-3.5 py-1.5 text-sm">
                     <input
                       type="checkbox"
                       checked={on}
                       onChange={() => set('serviceIds', on ? (f.serviceIds ?? []).filter((x) => x !== s.id) : [...(f.serviceIds ?? []), s.id])}
-                      className="accent-astro-600"
+                      className="accent-white"
                     />
                     {s.name}
                   </label>
@@ -258,13 +258,13 @@ function TimeOffList({ staffId }: { staffId: string | null }) {
   return (
     <div className="space-y-3">
       {items.length > 0 && (
-        <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 dark:divide-white/5 dark:border-white/10">
+        <ul className="divide-y divide-white/[0.06] rounded-3xl border border-white/[0.08] bg-white/[0.03]">
           {items.map((x) => (
             <li key={x.id} className="flex items-center gap-3 px-3 py-2 text-sm">
               <Badge>{t(`timeoff.${x.kind}` as TKey)}</Badge>
               <span className="flex-1 tabular-nums">
                 {formatDate(x.startsAt, biz.timezone, lang, 'd LLL HH:mm')} → {formatDate(x.endsAt, biz.timezone, lang, 'd LLL HH:mm')}
-                {x.reason && <span className="text-slate-500"> · {x.reason}</span>}
+                {x.reason && <span className="text-ink-muted"> · {x.reason}</span>}
               </span>
               <IconButton
                 label={t('common.delete')}
@@ -280,7 +280,7 @@ function TimeOffList({ staffId }: { staffId: string | null }) {
           ))}
         </ul>
       )}
-      <div className="grid gap-2 rounded-xl bg-slate-50 p-3 dark:bg-white/5 sm:grid-cols-6">
+      <div className="grid gap-2 rounded-3xl bg-white/[0.04] p-4 sm:grid-cols-6">
         <Field label={t('staff.kind')} className="sm:col-span-2">
           <Select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as TimeOff['kind'] })}>
             {(['vacation', 'holiday', 'block'] as const).map((k) => (
@@ -297,7 +297,7 @@ function TimeOffList({ staffId }: { staffId: string | null }) {
           <Input type="date" value={form.to} min={form.from} onChange={(e) => setForm({ ...form, to: e.target.value })} />
         </Field>
         <label className="flex items-center gap-2 text-sm sm:col-span-2">
-          <input type="checkbox" checked={form.allDay} onChange={(e) => setForm({ ...form, allDay: e.target.checked })} className="accent-astro-600" /> 24 h
+          <input type="checkbox" checked={form.allDay} onChange={(e) => setForm({ ...form, allDay: e.target.checked })} className="accent-white" /> 24 h
         </label>
         {!form.allDay && (
           <>

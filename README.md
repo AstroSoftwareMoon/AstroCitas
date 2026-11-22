@@ -34,13 +34,12 @@ ni cuentas centrales. Funciona de dos formas con **el mismo código y la misma i
 | ![Vista semana](docs/screenshots/week.png) | ![Vista día](docs/screenshots/day.png) |
 | **Nueva cita en 3 toques** (servicio → hueco → cliente) | **Ficha de cliente** con historial y gasto |
 | ![Nueva cita](docs/screenshots/new-appointment.png) | ![Clientes](docs/screenshots/clients.png) |
-| **Modo oscuro** | **Mes** |
-| ![Semana oscuro](docs/screenshots/week-dark.png) | ![Mes](docs/screenshots/month.png) |
+| **Mes** | **Ajustes** |
+| ![Mes](docs/screenshots/month.png) | ![Ajustes](docs/screenshots/settings.png) |
 
 <p align="center">
   <img src="docs/screenshots/mobile-day.png" alt="Móvil, vista día" width="240">
   <img src="docs/screenshots/mobile-new.png" alt="Móvil, nueva cita" width="240">
-  <img src="docs/screenshots/mobile-day-dark.png" alt="Móvil, modo oscuro" width="240">
 </p>
 
 ## Descargas
@@ -95,7 +94,7 @@ Guías para VPS, Raspberry Pi y NAS en `docs/` (fase 4).
 - ✅ Clientes: ficha, notas, etiquetas, cumpleaños, consentimientos RGPD, historial, total gastado,
   no-shows, exportar sus datos (RGPD), importar clientes desde CSV (exportable desde Excel).
 - ✅ Copia completa `.astrocitas` (JSON) y restauración, exportación CSV de clientes y citas.
-- ✅ Modo claro/oscuro, ES/EN, atajos de teclado (`N`, `T`, `D`/`W`/`M`, `←`/`→`, `/`, `?`), PWA instalable.
+- ✅ Interfaz negra con **Liquid Glass** (barra lateral y dock flotantes, diálogos de cristal; opción «Reducir transparencia»), fuente Outfit incluida, ES/EN, atajos de teclado (`N`, `T`, `D`/`W`/`M`, `←`/`→`, `/`, `?`), PWA instalable.
 - ✅ Cero telemetría.
 
 Hoja de ruta completa y diseño: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.

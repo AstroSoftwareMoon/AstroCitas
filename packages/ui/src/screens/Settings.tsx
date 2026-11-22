@@ -3,10 +3,10 @@ import { Database, Download, HardDrive, Lock, Palette, Server, Store, Upload, Tr
 import { BusinessKind, hhmmToMinutes, isBackupFile, isValidTimeZone, minutesToHHMM, toCsv, type Business } from '@astrocitas/core';
 import { useI18n, type Lang, type TKey } from '../i18n';
 import { useBiz, useDb, useInvalidate, useStorageInfo } from '../lib/data';
-import { useTheme, type Theme } from '../lib/theme';
+import { useReduceGlass } from '../lib/theme';
 import { downloadFile, pickFile } from '../lib/util';
 import { errorMessage } from '../lib/errors';
-import { Button, Field, Input, PageHeader, Segmented, Select } from '../components/ui';
+import { Button, Field, Input, PageHeader, Segmented, Select, Switch } from '../components/ui';
 import { useToast } from '../components/toast';
 import { LogoMark } from '../components/Logo';
 
@@ -17,7 +17,7 @@ export function SettingsScreen({ version }: { version?: string }) {
   const storage = useStorageInfo();
   const toast = useToast();
   const invalidate = useInvalidate();
-  const [theme, setTheme] = useTheme();
+  const [reduceGlass, setReduceGlass] = useReduceGlass();
   const [f, setF] = useState<Business>(biz);
   const set = <K extends keyof Business>(k: K, v: Business[K]) => setF({ ...f, [k]: v });
   const setS = <K extends keyof Business['settings']>(k: K, v: Business['settings'][K]) => setF({ ...f, settings: { ...f.settings, [k]: v } });
@@ -163,19 +163,8 @@ export function SettingsScreen({ version }: { version?: string }) {
           </Section>
 
           <Section icon={<Palette size={18} />} title={t('settings.appearance')}>
-            <div className="flex flex-wrap items-center gap-6">
-              <div>
-                <span className="label">{t('settings.theme')}</span>
-                <Segmented<Theme>
-                  value={theme}
-                  onChange={setTheme}
-                  options={[
-                    { value: 'light', label: t('settings.themeLight') },
-                    { value: 'dark', label: t('settings.themeDark') },
-                    { value: 'system', label: t('settings.themeSystem') },
-                  ]}
-                />
-              </div>
+            <div className="space-y-4">
+              <Switch checked={reduceGlass} onChange={setReduceGlass} label={t('settings.reduceGlass')} description={t('settings.reduceGlassDesc')} />
               <div>
                 <span className="label">{t('settings.language')}</span>
                 <Segmented<Lang>
@@ -214,21 +203,21 @@ export function SettingsScreen({ version }: { version?: string }) {
                 {t('settings.exportCsv')} · {t('nav.calendar')}
               </Button>
             </div>
-            <div className="mt-4 border-t border-slate-100 pt-4 dark:border-white/10">
-              <Button variant="ghost" icon={<Trash2 size={16} />} className="text-red-600 dark:text-red-400" onClick={wipe}>
+            <div className="mt-4 border-t border-white/[0.07] pt-4">
+              <Button variant="ghost" icon={<Trash2 size={16} />} className="text-red-300" onClick={wipe}>
                 {t('settings.wipe')}
               </Button>
             </div>
           </Section>
 
           <Section icon={<Server size={18} />} title={t('settings.mode')}>
-            <p className="text-sm text-slate-600 dark:text-slate-300">
+            <p className="text-sm text-white/70">
               <strong>{t('settings.serverFeatures')}:</strong> {t('settings.serverFeaturesList')}.
             </p>
-            <p className="mt-2 text-xs text-slate-500">{t('mode.soon')}</p>
+            <p className="mt-2 text-xs text-ink-muted">{t('mode.soon')}</p>
           </Section>
 
-          <div className="flex items-center justify-center gap-2 py-4 text-xs text-slate-400">
+          <div className="flex items-center justify-center gap-2 py-4 text-xs text-white/40">
             <LogoMark size={16} /> AstroCitas {version ?? ''} · AGPL-3.0 · Open source
           </div>
         </div>
@@ -241,7 +230,7 @@ function Section({ icon, title, children }: { icon: ReactNode; title: string; ch
   return (
     <section className="card p-4 sm:p-5">
       <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
-        <span className="text-astro-600 dark:text-astro-300">{icon}</span>
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-black">{icon}</span>
         {title}
       </h2>
       {children}

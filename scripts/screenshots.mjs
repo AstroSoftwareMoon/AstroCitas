@@ -9,7 +9,6 @@ const NOW = new Date('2026-11-19T11:40:00+01:00'); // jueves, para capturas repr
 
 async function setup(page, { dark = false } = {}) {
   await page.clock.setFixedTime(NOW);
-  await page.addInitScript((d) => localStorage.setItem('astrocitas.theme', d ? 'dark' : 'light'), dark);
   await page.goto(BASE);
   await page.getByTestId('mode-local').click();
   await page.getByTestId('onb-name').fill('Estudio Luna');
@@ -21,12 +20,11 @@ async function setup(page, { dark = false } = {}) {
 
 const browser = await chromium.launch({ args: ['--lang=es-ES'] });
 
-// Escritorio claro: semana, día, editor, clientes, equipo
+// Escritorio: semana, día, editor, mes, clientes, equipo
 {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, locale: 'es-ES', timezoneId: 'Europe/Madrid' });
   const page = await ctx.newPage();
   await page.clock.setFixedTime(NOW);
-  await page.addInitScript(() => localStorage.setItem('astrocitas.theme', 'light'));
   await page.goto(BASE);
   await page.waitForTimeout(400);
   await page.screenshot({ path: out('mode.png') });
@@ -62,28 +60,21 @@ const browser = await chromium.launch({ args: ['--lang=es-ES'] });
   await page.getByRole('button', { name: /Marta/ }).click();
   await page.waitForTimeout(400);
   await page.screenshot({ path: out('staff.png') });
-  await ctx.close();
-}
-
-// Escritorio oscuro
-{
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, locale: 'es-ES', timezoneId: 'Europe/Madrid', colorScheme: 'dark' });
-  const page = await ctx.newPage();
-  await setup(page, { dark: true });
-  await page.getByRole('tab', { name: 'Semana' }).click();
-  await page.waitForTimeout(500);
-  await page.screenshot({ path: out('week-dark.png') });
+  await page.keyboard.press('Escape');
+  await page.goto(`${BASE}/#/settings`);
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: out('settings.png') });
   await ctx.close();
 }
 
 // Móvil
-for (const dark of [false, true]) {
+for (const dark of [false]) {
   const ctx = await browser.newContext({ ...devices['Pixel 7'], locale: 'es-ES', timezoneId: 'Europe/Madrid', colorScheme: dark ? 'dark' : 'light' });
   const page = await ctx.newPage();
   await setup(page, { dark });
   await page.getByRole('tab', { name: 'Día' }).click();
   await page.waitForTimeout(500);
-  await page.screenshot({ path: out(dark ? 'mobile-day-dark.png' : 'mobile-day.png') });
+  await page.screenshot({ path: out('mobile-day.png') });
   if (!dark) {
     await page.getByRole('button', { name: 'Nueva cita' }).last().click();
     await page.getByRole('dialog').getByRole('button', { name: /^Corte mujer/ }).click();

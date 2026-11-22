@@ -197,7 +197,7 @@ export function AppointmentEditor({ state, onClose, onDuplicate }: { state: Edit
       footer={
         <>
           {existing && (
-            <div className="mr-auto flex flex-wrap gap-1">
+            <div className="mr-auto flex flex-wrap gap-0.5">
               <Button size="sm" variant="ghost" icon={<CheckCircle2 size={16} />} onClick={() => quickStatus('completed', { paidCents: existing.paidCents || existing.priceCents, paymentMethod: existing.paymentMethod ?? 'cash' })}>
                 {t('appt.charge')}
               </Button>
@@ -215,7 +215,7 @@ export function AppointmentEditor({ state, onClose, onDuplicate }: { state: Edit
               >
                 {t('appt.duplicate')}
               </Button>
-              <Button size="sm" variant="ghost" icon={<Trash2 size={16} />} onClick={remove} className="text-red-600 dark:text-red-400" aria-label={t('common.delete')} />
+              <Button size="sm" variant="ghost" icon={<Trash2 size={16} />} onClick={remove} className="text-red-300" aria-label={t('common.delete')} />
             </div>
           )}
           <Button onClick={onClose}>{t('common.cancel')}</Button>
@@ -241,14 +241,14 @@ export function AppointmentEditor({ state, onClose, onDuplicate }: { state: Edit
                   setPrice(null);
                 }}
                 className={cx(
-                  'flex items-start gap-2 rounded-xl border p-2.5 text-left text-sm transition',
-                  s.id === serviceId ? 'border-astro-500 bg-astro-50 ring-1 ring-astro-500 dark:bg-astro-500/15' : 'border-slate-200 hover:border-slate-300 dark:border-white/10 dark:hover:border-white/20',
+                  'press flex items-start gap-2.5 rounded-3xl p-3 text-left text-sm',
+                  s.id === serviceId ? 'bg-white text-black' : 'bg-white/[0.06] hover:bg-white/10',
                 )}
               >
                 <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
                 <span className="min-w-0">
                   <span className="block truncate font-medium">{s.name}</span>
-                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                  <span className={cx('text-xs', s.id === serviceId ? 'text-black/60' : 'text-ink-muted')}>
                     {s.durationMin} {t('common.min')} · {formatMoney(s.priceCents, biz.currency, lang)}
                   </span>
                 </span>
@@ -285,7 +285,7 @@ export function AppointmentEditor({ state, onClose, onDuplicate }: { state: Edit
           <div className="sm:col-span-2">
             <h3 className="label">{t('appt.slots')}</h3>
             {slots.length === 0 ? (
-              <p className="text-sm text-slate-500 dark:text-slate-400">{t('appt.noSlots')}</p>
+              <p className="text-sm text-ink-muted">{t('appt.noSlots')}</p>
             ) : (
               <div className="flex max-h-36 flex-wrap gap-1.5 overflow-y-auto" data-testid="slots">
                 {slots.map((s) => {
@@ -296,8 +296,8 @@ export function AppointmentEditor({ state, onClose, onDuplicate }: { state: Edit
                       type="button"
                       onClick={() => pickSlot(s.start, s.staffIds)}
                       className={cx(
-                        'rounded-lg border px-2.5 py-1 text-sm tabular-nums transition',
-                        m === minutes ? 'border-astro-600 bg-astro-600 text-white' : 'border-slate-200 hover:border-astro-400 dark:border-white/10',
+                        'press rounded-full px-3 py-1.5 text-sm tabular-nums',
+                        m === minutes ? 'bg-white font-semibold text-black' : 'bg-white/[0.07] hover:bg-white/[0.12]',
                       )}
                     >
                       {formatTime(s.start, tz)}
@@ -313,13 +313,13 @@ export function AppointmentEditor({ state, onClose, onDuplicate }: { state: Edit
         <section>
           <h3 className="label">{t('appt.client')}</h3>
           {clientId && selectedClient ? (
-            <div className="flex items-center gap-3 rounded-xl border border-slate-200 p-2.5 dark:border-white/10">
+            <div className="flex items-center gap-3 rounded-full bg-white/[0.07] p-1.5 pr-2">
               <Avatar name={selectedClient.name} size={32} />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium">{selectedClient.name}</div>
-                <div className="truncate text-xs text-slate-500">{selectedClient.phone || selectedClient.email}</div>
+                <div className="truncate text-xs text-ink-muted">{selectedClient.phone || selectedClient.email}</div>
               </div>
-              <button type="button" aria-label={t('common.delete')} onClick={() => setClientId(null)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10">
+              <button type="button" aria-label={t('common.delete')} onClick={() => setClientId(null)} className="rounded-full p-1.5 text-white/60 hover:bg-white/10">
                 <X size={16} />
               </button>
             </div>
@@ -337,7 +337,7 @@ export function AppointmentEditor({ state, onClose, onDuplicate }: { state: Edit
             <div className="relative">
               <Input value={clientQuery} onChange={(e) => setClientQuery(e.target.value)} placeholder={t('appt.clientPh')} data-testid="client-search" />
               {clientQuery.trim() && (
-                <div className="absolute inset-x-0 top-full z-10 mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-white/10 dark:bg-space-900">
+                <div className="mt-2 max-h-56 overflow-y-auto rounded-3xl bg-white/[0.05] p-1.5">
                   {clientResults.slice(0, 8).map((c) => (
                     <button
                       key={c.id}
@@ -346,11 +346,11 @@ export function AppointmentEditor({ state, onClose, onDuplicate }: { state: Edit
                         setClientId(c.id);
                         setClientQuery('');
                       }}
-                      className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-slate-100 dark:hover:bg-white/10"
+                      className="flex w-full items-center gap-2 rounded-full px-2 py-1.5 text-left text-sm hover:bg-white/10"
                     >
                       <Avatar name={c.name} size={24} />
                       <span className="flex-1 truncate">{c.name}</span>
-                      <span className="text-xs text-slate-500">{c.phone}</span>
+                      <span className="text-xs text-ink-muted">{c.phone}</span>
                     </button>
                   ))}
                   <button
@@ -360,7 +360,7 @@ export function AppointmentEditor({ state, onClose, onDuplicate }: { state: Edit
                       setNewClient(looksLikePhone ? { name: '', phone: clientQuery.trim() } : { name: clientQuery.trim(), phone: '' });
                       setClientQuery('');
                     }}
-                    className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm font-medium text-astro-700 hover:bg-astro-50 dark:text-astro-300 dark:hover:bg-astro-500/10"
+                    className="flex w-full items-center gap-2 rounded-full px-3 py-2 text-left text-sm font-medium text-white hover:bg-white/10"
                     data-testid="client-create"
                   >
                     <UserPlus size={16} /> {t('appt.newClient', { name: clientQuery.trim() })}
@@ -373,7 +373,7 @@ export function AppointmentEditor({ state, onClose, onDuplicate }: { state: Edit
 
         {/* Más opciones */}
         <section>
-          <button type="button" onClick={() => setMore(!more)} className="flex items-center gap-1 text-sm font-medium text-slate-600 dark:text-slate-300" aria-expanded={more}>
+          <button type="button" onClick={() => setMore(!more)} className="flex items-center gap-1 text-sm font-medium text-white/70 hover:text-white" aria-expanded={more}>
             <ChevronDown size={16} className={cx('transition', more && 'rotate-180')} /> {t('appt.status')}, {t('appt.price').toLowerCase()}, {t('appt.repeat').toLowerCase()}…
           </button>
           {more && (
@@ -429,7 +429,7 @@ export function AppointmentEditor({ state, onClose, onDuplicate }: { state: Edit
         </section>
 
         {conflicts && conflicts.length > 0 && (
-          <div role="alert" className={cx('rounded-xl border p-3 text-sm', hasErrors ? 'border-red-300 bg-red-50 text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200' : 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100')}>
+          <div role="alert" className={cx('rounded-3xl border p-4 text-sm', hasErrors ? 'border-red-400/40 bg-red-500/15 text-red-100' : 'border-amber-400/40 bg-amber-500/15 text-amber-100')}>
             <div className="flex items-start gap-2">
               <AlertTriangle size={18} className="mt-0.5 shrink-0" />
               <div className="flex-1">
@@ -449,7 +449,7 @@ export function AppointmentEditor({ state, onClose, onDuplicate }: { state: Edit
           </div>
         )}
         {error && (
-          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          <p role="alert" className="text-sm text-red-300">
             {error}
           </p>
         )}
@@ -465,8 +465,8 @@ function Chip({ active, onClick, children }: { active: boolean; onClick(): void;
       aria-pressed={active}
       onClick={onClick}
       className={cx(
-        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition',
-        active ? 'border-astro-600 bg-astro-600 text-white' : 'border-slate-200 hover:border-slate-300 dark:border-white/10',
+        'press inline-flex items-center gap-1.5 rounded-full py-1.5 pl-1.5 pr-3.5 text-sm font-medium first:pl-3.5',
+        active ? 'bg-white text-black' : 'bg-white/[0.07] text-white/85 hover:bg-white/[0.12]',
       )}
     >
       {children}

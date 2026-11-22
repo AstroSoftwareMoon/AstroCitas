@@ -19,8 +19,8 @@ export default defineConfig({
         short_name: 'AstroCitas',
         description: 'Agenda de citas local-first y open source',
         lang: 'es',
-        theme_color: '#090614',
-        background_color: '#090614',
+        theme_color: '#000000',
+        background_color: '#000000',
         display: 'standalone',
         start_url: './',
         icons: [

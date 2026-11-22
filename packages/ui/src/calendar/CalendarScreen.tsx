@@ -183,9 +183,9 @@ export function CalendarScreen({ params }: { params: URLSearchParams }) {
           date: d,
           staffId: single?.id ?? null,
           header: (
-            <button type="button" onClick={() => { setDate(d); setView('day'); }} className="w-full rounded-lg py-0.5 hover:bg-slate-100 dark:hover:bg-white/5">
-              <div className="text-[11px] font-medium uppercase text-slate-500">{formatLocalDate(d, lang, 'ccc')}</div>
-              <div className={cx('mx-auto mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold', d === today && 'bg-astro-600 text-white')}>
+            <button type="button" onClick={() => { setDate(d); setView('day'); }} className="press w-full rounded-2xl py-0.5 hover:bg-white/[0.06]">
+              <div className="text-[11px] font-medium uppercase tracking-wider text-ink-muted">{formatLocalDate(d, lang, 'ccc')}</div>
+              <div className={cx('mx-auto mt-0.5 flex h-8 w-8 items-center justify-center rounded-full text-base font-semibold', d === today && 'bg-white text-black')}>
                 {Number(d.slice(8))}
               </div>
             </button>
@@ -234,19 +234,19 @@ export function CalendarScreen({ params }: { params: URLSearchParams }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Barra de herramientas */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200/70 bg-white px-3 py-2 dark:border-white/10 dark:bg-space-900 sm:px-4">
-        <div className="mr-auto flex items-center sm:mr-0">
+      <div className="flex flex-wrap items-center gap-2 px-4 pb-2 pt-4 sm:px-5">
+        <div className="glass mr-auto flex items-center rounded-full p-1 sm:mr-0">
           <IconButton label={t('cal.prev')} onClick={() => step(-1)}>
             <ChevronLeft size={20} />
           </IconButton>
-          <Button size="sm" onClick={() => setDate(today)} className="mx-1">
+          <Button size="sm" variant="ghost" onClick={() => setDate(today)} className="mx-0.5">
             {t('cal.today')}
           </Button>
           <IconButton label={t('cal.next')} onClick={() => step(1)}>
             <ChevronRight size={20} />
           </IconButton>
         </div>
-        <h1 className="order-first w-full truncate text-base font-semibold capitalize sm:order-none sm:w-auto sm:min-w-0 sm:flex-1 sm:text-lg" data-testid="cal-title">
+        <h1 className="order-first w-full truncate text-3xl font-semibold capitalize tracking-tight sm:order-none sm:w-auto sm:min-w-0 sm:flex-1 sm:px-2" data-testid="cal-title">
           {title}
         </h1>
         <Segmented
@@ -270,7 +270,7 @@ export function CalendarScreen({ params }: { params: URLSearchParams }) {
 
       {/* Filtros de profesional y color */}
       {allStaff.length > 0 && (
-        <div className="flex items-center gap-2 overflow-x-auto border-b border-slate-200/70 bg-white px-3 py-2 dark:border-white/10 dark:bg-space-900 sm:px-4">
+        <div className="flex items-center gap-2 overflow-x-auto px-4 pb-3 pt-1 sm:px-5">
           {allStaff.map((s) => (
             <button
               key={s.id}
@@ -278,16 +278,17 @@ export function CalendarScreen({ params }: { params: URLSearchParams }) {
               aria-pressed={!hidden.has(s.id)}
               onClick={() => toggleStaff(s.id)}
               className={cx(
-                'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition',
-                hidden.has(s.id) ? 'border-slate-200 text-slate-400 dark:border-white/10' : 'border-transparent text-slate-800 dark:text-slate-100',
+                'press inline-flex shrink-0 items-center gap-2 rounded-full py-1 pl-1 pr-3.5 text-sm font-medium',
+                hidden.has(s.id) ? 'bg-white/[0.04] text-white/35' : 'bg-white/[0.09] text-white',
               )}
-              style={hidden.has(s.id) ? undefined : { backgroundColor: `${s.color}1f` }}
             >
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: hidden.has(s.id) ? '#cbd5e1' : s.color }} />
+              <span className={cx('inline-flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold text-white', hidden.has(s.id) && 'opacity-40')} style={{ backgroundColor: s.color }}>
+                {s.name.slice(0, 1).toUpperCase()}
+              </span>
               {s.name}
             </button>
           ))}
-          <div className="ml-auto flex shrink-0 items-center gap-1 text-xs text-slate-500">
+          <div className="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-ink-muted">
             <span className="hidden sm:inline">{t('common.color')}:</span>
             <Segmented
               value={colorBy}
@@ -299,7 +300,7 @@ export function CalendarScreen({ params }: { params: URLSearchParams }) {
                 { value: 'service', label: t('appt.service') },
                 { value: 'staff', label: t('appt.staff') },
               ]}
-              className="scale-90"
+              className="text-xs"
             />
           </div>
         </div>
@@ -349,7 +350,7 @@ export function CalendarScreen({ params }: { params: URLSearchParams }) {
         type="button"
         aria-label={t('cal.new')}
         onClick={() => setEditor({ defaults: { date } })}
-        className="fixed bottom-20 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-2xl bg-astro-600 text-white shadow-lg shadow-astro-600/40 active:scale-95 md:hidden"
+        className="press fixed bottom-[calc(max(0.75rem,env(safe-area-inset-bottom))+5.25rem)] right-4 z-30 flex h-15 w-15 items-center justify-center rounded-full bg-white text-black shadow-[0_10px_30px_-6px_rgb(255_255_255/0.35)] md:hidden"
       >
         <Plus size={26} />
       </button>
@@ -379,7 +380,7 @@ export function CalendarScreen({ params }: { params: URLSearchParams }) {
           ).map(([k, l]) => (
             <div key={k} className="contents">
               <dt>
-                <kbd className="rounded-md border border-slate-300 bg-slate-50 px-2 py-0.5 font-mono text-xs dark:border-white/20 dark:bg-white/5">{k}</kbd>
+                <kbd className="rounded-lg border border-white/15 bg-white/[0.06] px-2 py-0.5 font-mono text-xs">{k}</kbd>
               </dt>
               <dd>{t(l)}</dd>
             </div>
