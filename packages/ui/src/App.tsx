@@ -1,8 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { CalendarDays, Cog, Scissors, Server, Smartphone, Users, UserRound } from 'lucide-react';
+import { CalendarDays, Cog, MessageCircle, Scissors, Server, Smartphone, Users, UserRound } from 'lucide-react';
 import type { DataAdapter } from '@astrocitas/core';
 import { I18nProvider, useI18n, type TKey } from './i18n';
-import { DataProvider, useBusiness, type StorageInfo } from './lib/data';
+import { DataProvider, useBusiness, useDb, type StorageInfo } from './lib/data';
+import { PlatformProvider, usePlatform, webPlatform, type Platform } from './lib/platform';
+import { useBackgroundJobs } from './lib/background';
 import { navigate, useRoute } from './lib/router';
 import { initTheme } from './lib/theme';
 import { cx } from './lib/util';
@@ -14,6 +16,7 @@ import { ClientsScreen } from './screens/Clients';
 import { ServicesScreen } from './screens/Services';
 import { StaffScreen } from './screens/Staff';
 import { SettingsScreen } from './screens/Settings';
+import { MessagesScreen } from './screens/Messages';
 
 export interface OpenedStore {
   db: DataAdapter;
@@ -25,6 +28,8 @@ export interface AstroAppProps {
   openLocal: () => Promise<OpenedStore>;
   /** Versión mostrada en Ajustes. */
   version?: string;
+  /** Capacidades de la plataforma (Tauri sustituye a la web). */
+  platform?: Platform;
 }
 
 const MODE_KEY = 'astrocitas.mode';
@@ -40,11 +45,13 @@ function readMode(): 'local' | null {
 export function AstroApp(props: AstroAppProps) {
   useEffect(initTheme, []);
   return (
-    <I18nProvider>
-      <ToastProvider>
-        <Boot {...props} />
-      </ToastProvider>
-    </I18nProvider>
+    <PlatformProvider platform={props.platform ?? webPlatform}>
+      <I18nProvider>
+        <ToastProvider>
+          <Boot {...props} />
+        </ToastProvider>
+      </I18nProvider>
+    </PlatformProvider>
   );
 }
 
@@ -139,6 +146,7 @@ function Gate({ version }: { version?: string }) {
 const NAV: { path: string; key: TKey; icon: typeof CalendarDays }[] = [
   { path: '/calendar', key: 'nav.calendar', icon: CalendarDays },
   { path: '/clients', key: 'nav.clients', icon: Users },
+  { path: '/messages', key: 'nav.messages', icon: MessageCircle },
   { path: '/services', key: 'nav.services', icon: Scissors },
   { path: '/staff', key: 'nav.staff', icon: UserRound },
   { path: '/settings', key: 'nav.settings', icon: Cog },
@@ -148,12 +156,16 @@ function Shell({ version }: { version?: string }) {
   const { t } = useI18n();
   const { data: business } = useBusiness();
   const [path, params] = useRoute();
+  useBackgroundJobs(useDb(), usePlatform());
   const section = '/' + (path.split('/')[1] ?? 'calendar');
 
   let screen: ReactNode;
   switch (section) {
     case '/clients':
       screen = <ClientsScreen selectedId={path.split('/')[2]} />;
+      break;
+    case '/messages':
+      screen = <MessagesScreen />;
       break;
     case '/services':
       screen = <ServicesScreen />;
@@ -210,7 +222,7 @@ function Shell({ version }: { version?: string }) {
             onClick={() => navigate(n.path)}
             aria-current={section === n.path ? 'page' : undefined}
             className={cx(
-              'press flex flex-1 flex-col items-center gap-0.5 rounded-[26px] py-2 text-[11px] font-medium',
+              'press flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-[26px] py-2 text-[10px] font-medium',
               section === n.path ? 'glass glass-lens text-white' : 'text-white/60',
             )}
           >

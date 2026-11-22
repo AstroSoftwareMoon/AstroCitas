@@ -1,4 +1,4 @@
-import type { Appointment, Business, Client, Service, Staff, TimeOff, WaitlistEntry } from './types';
+import type { Appointment, Business, Client, MessageTemplate, OutboxMessage, ReminderRule, Service, Staff, TimeOff, WaitlistEntry } from './types';
 
 export const BACKUP_FORMAT = 'astrocitas-backup';
 export const BACKUP_VERSION = 1;
@@ -18,6 +18,9 @@ export interface BackupFile {
     timeOff: TimeOff[];
     appointments: Appointment[];
     waitlist: WaitlistEntry[];
+    templates?: MessageTemplate[];
+    reminderRules?: ReminderRule[];
+    messages?: OutboxMessage[];
   };
 }
 

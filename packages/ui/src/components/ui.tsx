@@ -66,9 +66,9 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
   return <input ref={ref} {...props} className={cx('input', props.className)} />;
 });
 
-export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea rows={3} {...props} className={cx('input resize-y', props.className)} />;
-}
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function Textarea(props, ref) {
+  return <textarea ref={ref} rows={3} {...props} className={cx('input resize-y', props.className)} />;
+});
 
 export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return <select {...props} className={cx('input pr-8', props.className)} />;

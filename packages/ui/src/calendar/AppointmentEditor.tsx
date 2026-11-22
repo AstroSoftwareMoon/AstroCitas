@@ -26,6 +26,7 @@ import { cx } from '../lib/util';
 import { conflictMessages, errorMessage } from '../lib/errors';
 import { Avatar, Button, Field, Input, Modal, Select, Textarea } from '../components/ui';
 import { useToast } from '../components/toast';
+import { SendButtons } from '../screens/Messages';
 
 export interface EditorState {
   appointment?: Appointment;
@@ -370,6 +371,13 @@ export function AppointmentEditor({ state, onClose, onDuplicate }: { state: Edit
             </div>
           )}
         </section>
+
+        {existing && selectedClient && (existing.status === 'booked' || existing.status === 'confirmed') && (
+          <section>
+            <h3 className="label">{t('msg.sendReminder')}</h3>
+            <SendButtons client={selectedClient} appointment={existing} kind="reminder" />
+          </section>
+        )}
 
         {/* Más opciones */}
         <section>

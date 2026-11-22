@@ -170,4 +170,63 @@ export type Input<S extends z.ZodType> = Omit<z.input<S>, 'id' | 'createdAt' | '
   id?: string;
 };
 
-export type EntityName = 'business' | 'staff' | 'services' | 'clients' | 'appointments' | 'timeOff' | 'waitlist';
+export const MessageChannel = z.enum(['whatsapp', 'sms', 'email']);
+export type MessageChannel = z.infer<typeof MessageChannel>;
+export const MessageKind = z.enum(['reminder', 'confirmation', 'thanks', 'review', 'birthday', 'waitlist', 'request', 'custom']);
+export type MessageKind = z.infer<typeof MessageKind>;
+
+/** Plantilla editable con variables: {cliente} {servicio} {fecha} {hora} {profesional} {negocio} {enlace} … */
+export const MessageTemplate = z.object({
+  ...base,
+  kind: MessageKind,
+  channel: z.enum(['whatsapp', 'sms', 'email', 'any']).default('any'),
+  subject: z.string().max(200).default(''),
+  body: z.string().min(1, 'La plantilla no puede estar vacía').max(2000),
+  active: z.boolean().default(true),
+});
+export type MessageTemplate = z.infer<typeof MessageTemplate>;
+
+/** Regla de recordatorio (p. ej. 24 h antes por email). offsetMin < 0 = antes del inicio; > 0 = después del fin. */
+export const ReminderRule = z.object({
+  ...base,
+  kind: MessageKind,
+  /** 'before_start' | 'after_end' | 'on_booking' */
+  anchor: z.enum(['before_start', 'after_end', 'on_booking']).default('before_start'),
+  offsetMin: z.number().int().min(0).max(60 * 24 * 14).default(24 * 60),
+  channels: z.array(MessageChannel).default(['email']),
+  active: z.boolean().default(true),
+});
+export type ReminderRule = z.infer<typeof ReminderRule>;
+
+/** Registro de cada mensaje enviado o abierto (1 toque) para no repetir y para el estado de entrega. */
+export const OutboxMessage = z.object({
+  ...base,
+  appointmentId: ID.nullable().default(null),
+  clientId: ID.nullable().default(null),
+  ruleId: ID.nullable().default(null),
+  kind: MessageKind,
+  channel: MessageChannel,
+  recipient: z.string().max(200).default(''),
+  subject: z.string().max(200).default(''),
+  body: z.string().max(4000).default(''),
+  /** opened = abierto en WhatsApp/SMS/correo (1 toque, el envío lo confirma la persona) */
+  status: z.enum(['queued', 'opened', 'sent', 'delivered', 'read', 'failed', 'cancelled']).default('queued'),
+  error: z.string().max(1000).default(''),
+  providerId: z.string().max(200).default(''),
+  attempts: z.number().int().min(0).default(0),
+  idempotencyKey: z.string().max(300).nullable().default(null),
+  sentAt: z.number().int().nullable().default(null),
+});
+export type OutboxMessage = z.infer<typeof OutboxMessage>;
+
+export type EntityName =
+  | 'business'
+  | 'staff'
+  | 'services'
+  | 'clients'
+  | 'appointments'
+  | 'timeOff'
+  | 'waitlist'
+  | 'templates'
+  | 'reminderRules'
+  | 'messages';

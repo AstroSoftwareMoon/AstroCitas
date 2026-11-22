@@ -119,6 +119,34 @@ export const TABLES: Record<EntityName, { table: string; cols: Col[] }> = {
       c('status'),
     ],
   },
+  templates: {
+    table: 'message_templates',
+    cols: [...baseCols, c('kind'), c('channel'), c('subject'), c('body'), c('active', 'bool')],
+  },
+  reminderRules: {
+    table: 'reminder_rules',
+    cols: [...baseCols, c('kind'), c('anchor'), c('offsetMin', 'int'), c('channels', 'json'), c('active', 'bool')],
+  },
+  messages: {
+    table: 'outbox_messages',
+    cols: [
+      ...baseCols,
+      c('appointmentId', 'nullable_text'),
+      c('clientId', 'nullable_text'),
+      c('ruleId', 'nullable_text'),
+      c('kind'),
+      c('channel'),
+      c('recipient'),
+      c('subject'),
+      c('body'),
+      c('status'),
+      c('error'),
+      c('providerId'),
+      c('attempts', 'int'),
+      c('idempotencyKey', 'nullable_text'),
+      c('sentAt', 'nullable_int'),
+    ],
+  },
 };
 
 export function rowToEntity<T>(entity: EntityName, row: Row): T {

@@ -1,6 +1,26 @@
-import { useState, type ReactNode } from 'react';
-import { Database, Download, HardDrive, Lock, Palette, Server, Store, Upload, Trash2, CalendarClock } from 'lucide-react';
-import { BusinessKind, hhmmToMinutes, isBackupFile, isValidTimeZone, minutesToHHMM, toCsv, type Business } from '@astrocitas/core';
+import { useEffect, useState, type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import QRCode from 'qrcode';
+import { CalendarClock, Copy, Database, Download, FileCode, HardDrive, History, Lock, Palette, QrCode, Server, Store, Trash2, Upload } from 'lucide-react';
+import {
+  BusinessKind,
+  decryptJson,
+  defaultTemplates,
+  encryptJson,
+  generateRequestPage,
+  hhmmToMinutes,
+  isBackupFile,
+  isEncryptedFile,
+  isValidTimeZone,
+  minutesToHHMM,
+  renderTemplate,
+  requestLink,
+  toCsv,
+  type BackupFile,
+  type Business,
+} from '@astrocitas/core';
+import { usePlatform } from '../lib/platform';
+import { useServices, useStaff } from '../lib/data';
 import { useI18n, type Lang, type TKey } from '../i18n';
 import { useBiz, useDb, useInvalidate, useStorageInfo } from '../lib/data';
 import { useReduceGlass } from '../lib/theme';
@@ -33,22 +53,33 @@ export function SettingsScreen({ version }: { version?: string }) {
     }
   }
 
+  const [backupPass, setBackupPass] = useState('');
   async function exportBackup() {
     const data = await db.exportAll();
     const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
-    downloadFile(`astrocitas-${stamp}.astrocitas`, JSON.stringify(data), 'application/json');
+    const content = backupPass ? await encryptJson(data, backupPass) : data;
+    downloadFile(`astrocitas-${stamp}.astrocitas`, JSON.stringify(content), 'application/json');
+  }
+
+  async function restoreText(text: string) {
+    let json = JSON.parse(text);
+    if (isEncryptedFile(json)) {
+      const pass = window.prompt(t('settings.password'));
+      if (!pass) return;
+      json = await decryptJson(json, pass);
+    }
+    if (!isBackupFile(json)) throw new Error('El archivo no es una copia de AstroCitas');
+    if (!window.confirm(t('settings.importConfirm'))) return;
+    await db.importAll(json as BackupFile, { mode: 'replace' });
+    await invalidate();
+    toast.show(t('settings.imported'));
   }
 
   async function importBackup() {
     const file = await pickFile('.astrocitas,.json,application/json');
     if (!file) return;
     try {
-      const json = JSON.parse(await file.text());
-      if (!isBackupFile(json)) throw new Error('El archivo no es una copia de AstroCitas');
-      if (!window.confirm(t('settings.importConfirm'))) return;
-      await db.importAll(json, { mode: 'replace' });
-      await invalidate();
-      toast.show(t('settings.imported'));
+      await restoreText(await file.text());
     } catch (e) {
       toast.error(errorMessage(e, t));
     }
@@ -189,6 +220,10 @@ export function SettingsScreen({ version }: { version?: string }) {
                 </p>
               </div>
             </div>
+            <div className="mb-3 flex max-w-md items-center gap-2">
+              <Lock size={16} className="shrink-0 text-ink-muted" />
+              <Input type="password" value={backupPass} onChange={(e) => setBackupPass(e.target.value)} placeholder={t('settings.encryptPh')} aria-label={t('settings.encrypt')} autoComplete="new-password" />
+            </div>
             <div className="flex flex-wrap gap-2">
               <Button icon={<Download size={16} />} onClick={exportBackup} data-testid="export">
                 {t('settings.export')}
@@ -209,6 +244,10 @@ export function SettingsScreen({ version }: { version?: string }) {
               </Button>
             </div>
           </Section>
+
+          <AutoBackups onRestore={(text) => restoreText(text).catch((e) => toast.error(errorMessage(e, t)))} />
+
+          <RequestMode business={biz} />
 
           <Section icon={<Server size={18} />} title={t('settings.mode')}>
             <p className="text-sm text-white/70">
@@ -235,5 +274,77 @@ function Section({ icon, title, children }: { icon: ReactNode; title: string; ch
       </h2>
       {children}
     </section>
+  );
+}
+
+function AutoBackups({ onRestore }: { onRestore(text: string): void }) {
+  const { t, lang } = useI18n();
+  const platform = usePlatform();
+  const { data: list = [] } = useQuery({ queryKey: ['autoBackups'], queryFn: () => platform.autoBackups.list() });
+  return (
+    <Section icon={<History size={18} />} title={t('settings.autoBackups')}>
+      <p className="mb-3 text-sm text-ink-muted">{t('settings.autoBackupsDesc')}</p>
+      {list.length === 0 ? (
+        <p className="text-sm text-ink-muted">{t('settings.noBackups')}</p>
+      ) : (
+        <ul className="divide-y divide-white/[0.06]">
+          {list.map((b) => (
+            <li key={b.name} className="flex items-center gap-3 py-2 text-sm">
+              <span className="flex-1 truncate">{new Date(b.date).toLocaleString(lang)}</span>
+              <span className="text-xs text-ink-muted">{Math.max(1, Math.round(b.size / 1024))} KB</span>
+              <Button size="sm" onClick={async () => onRestore(await platform.autoBackups.read(b.name))}>
+                {t('settings.restore')}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
+  );
+}
+
+function RequestMode({ business }: { business: Business }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const { data: services = [] } = useServices();
+  const { data: staff = [] } = useStaff();
+  const tpl = defaultTemplates(business.locale).find((x) => x.kind === 'request')!;
+  const link = requestLink(business, renderTemplate(tpl.body, { negocio: business.name, servicio: '…', cliente: '…' }));
+  const [svg, setSvg] = useState('');
+  useEffect(() => {
+    if (!link) return setSvg('');
+    QRCode.toString(link, { type: 'svg', margin: 1, errorCorrectionLevel: 'M', color: { dark: '#000000', light: '#ffffff' } }).then(setSvg, () => setSvg(''));
+  }, [link]);
+  return (
+    <Section icon={<QrCode size={18} />} title={t('settings.request')}>
+      <p className="mb-4 text-sm text-ink-muted">{t('settings.requestDesc')}</p>
+      {!link ? (
+        <p className="rounded-3xl bg-amber-500/10 p-3 text-sm text-amber-100">{t('settings.requestNeedsContact')}</p>
+      ) : (
+        <div className="flex flex-wrap items-start gap-5">
+          <div className="w-40 overflow-hidden rounded-3xl bg-white p-2" data-testid="request-qr" dangerouslySetInnerHTML={{ __html: svg }} />
+          <div className="flex flex-col gap-2">
+            <Button icon={<Download size={16} />} onClick={() => downloadFile('astrocitas-qr.svg', svg, 'image/svg+xml')}>
+              {t('settings.downloadQr')}
+            </Button>
+            <Button
+              icon={<Copy size={16} />}
+              onClick={() => navigator.clipboard?.writeText(link).then(() => toast.show(t('settings.copied')), () => undefined)}
+            >
+              {t('settings.copyLink')}
+            </Button>
+            <Button
+              variant="primary"
+              icon={<FileCode size={16} />}
+              onClick={() => downloadFile('reserva.html', generateRequestPage({ business, services, staff }), 'text/html')}
+              data-testid="download-request-page"
+            >
+              {t('settings.downloadPage')}
+            </Button>
+          </div>
+        </div>
+      )}
+      <p className="mt-4 text-xs text-ink-muted">{t('settings.serverOnly')}</p>
+    </Section>
   );
 }

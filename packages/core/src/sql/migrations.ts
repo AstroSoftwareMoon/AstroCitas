@@ -155,6 +155,56 @@ CREATE TABLE IF NOT EXISTS meta (
 );
 `,
   },
+  {
+    version: 2,
+    name: 'mensajería: plantillas, reglas de recordatorio y registro de envíos',
+    sql: /* sql */ `
+CREATE TABLE IF NOT EXISTS message_templates (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  channel TEXT NOT NULL DEFAULT 'any',
+  subject TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  deleted_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS reminder_rules (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  anchor TEXT NOT NULL DEFAULT 'before_start',
+  offset_min INTEGER NOT NULL DEFAULT 1440,
+  channels TEXT NOT NULL DEFAULT '["email"]',
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  deleted_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS outbox_messages (
+  id TEXT PRIMARY KEY,
+  appointment_id TEXT,
+  client_id TEXT,
+  rule_id TEXT,
+  kind TEXT NOT NULL,
+  channel TEXT NOT NULL,
+  recipient TEXT NOT NULL DEFAULT '',
+  subject TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'queued',
+  error TEXT NOT NULL DEFAULT '',
+  provider_id TEXT NOT NULL DEFAULT '',
+  attempts INTEGER NOT NULL DEFAULT 0,
+  idempotency_key TEXT UNIQUE,
+  sent_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  deleted_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS outbox_appointment ON outbox_messages(appointment_id, kind);
+CREATE INDEX IF NOT EXISTS outbox_status ON outbox_messages(status, created_at);
+`,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

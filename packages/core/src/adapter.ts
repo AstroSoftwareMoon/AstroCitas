@@ -8,6 +8,9 @@ import type {
   Staff,
   TimeOff,
   WaitlistEntry,
+  MessageTemplate,
+  ReminderRule,
+  OutboxMessage,
 } from './types';
 import type * as S from './types';
 import type { Conflict } from './slots';
@@ -70,6 +73,17 @@ export interface DataAdapter {
 
   listWaitlist(): Promise<WaitlistEntry[]>;
   saveWaitlist(input: Input<typeof S.WaitlistEntry>): Promise<WaitlistEntry>;
+
+  listTemplates(): Promise<MessageTemplate[]>;
+  saveTemplate(input: Input<typeof S.MessageTemplate>): Promise<MessageTemplate>;
+  listReminderRules(): Promise<ReminderRule[]>;
+  saveReminderRule(input: Input<typeof S.ReminderRule>): Promise<ReminderRule>;
+  listMessages(q?: { appointmentIds?: string[]; clientId?: string; since?: number; status?: OutboxMessage['status'][]; limit?: number }): Promise<OutboxMessage[]>;
+  saveMessage(input: Input<typeof S.OutboxMessage>): Promise<OutboxMessage>;
+
+  /** Ajustes locales clave/valor (preferencias de notificación, SMTP…). No se sincronizan. */
+  getMeta<T = unknown>(key: string): Promise<T | null>;
+  setMeta(key: string, value: unknown): Promise<void>;
 
   /** Borrado lógico (permite deshacer). */
   remove(entity: EntityName, id: string): Promise<void>;

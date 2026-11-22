@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 import * as S from '../types';
-import type { Appointment, Business, Client, EntityName, Input, Service, Staff, TimeOff, WaitlistEntry } from '../types';
+import type { Appointment, Business, Client, EntityName, Input, MessageTemplate, OutboxMessage, ReminderRule, Service, Staff, TimeOff, WaitlistEntry } from '../types';
 import {
   ConflictError,
   ValidationError,
@@ -30,10 +30,13 @@ const SCHEMAS: Record<EntityName, z.ZodType> = {
   timeOff: S.TimeOff,
   appointments: S.Appointment,
   waitlist: S.WaitlistEntry,
+  templates: S.MessageTemplate,
+  reminderRules: S.ReminderRule,
+  messages: S.OutboxMessage,
 };
 
 /** Orden de inserción que respeta claves foráneas. */
-const ENTITY_ORDER: EntityName[] = ['business', 'staff', 'services', 'clients', 'timeOff', 'appointments', 'waitlist'];
+export const ENTITY_ORDER: EntityName[] = ['business', 'staff', 'services', 'clients', 'timeOff', 'appointments', 'waitlist', 'templates', 'reminderRules', 'messages'];
 
 function parseOrThrow<T>(schema: z.ZodType, value: unknown): T {
   const r = schema.safeParse(value);
@@ -302,6 +305,54 @@ export class SqlAdapter implements DataAdapter {
   }
   saveWaitlist(input: Input<typeof S.WaitlistEntry>) {
     return this.save<WaitlistEntry>('waitlist', input);
+  }
+
+  // ---------- mensajería ----------
+
+  listTemplates(): Promise<MessageTemplate[]> {
+    return this.listAll<MessageTemplate>('templates', 'deleted_at IS NULL', [], 'ORDER BY kind, channel');
+  }
+  saveTemplate(input: Input<typeof S.MessageTemplate>) {
+    return this.save<MessageTemplate>('templates', input);
+  }
+  listReminderRules(): Promise<ReminderRule[]> {
+    return this.listAll<ReminderRule>('reminderRules', 'deleted_at IS NULL', [], 'ORDER BY anchor, offset_min DESC');
+  }
+  saveReminderRule(input: Input<typeof S.ReminderRule>) {
+    return this.save<ReminderRule>('reminderRules', input);
+  }
+  async listMessages(q: { appointmentIds?: string[]; clientId?: string; since?: number; status?: OutboxMessage['status'][]; limit?: number } = {}): Promise<OutboxMessage[]> {
+    const where = ['deleted_at IS NULL'];
+    const params: SqlValue[] = [];
+    if (q.appointmentIds) {
+      if (!q.appointmentIds.length) return [];
+      where.push(`appointment_id IN (${q.appointmentIds.map(() => '?').join(',')})`);
+      params.push(...q.appointmentIds);
+    }
+    if (q.clientId) {
+      where.push('client_id = ?');
+      params.push(q.clientId);
+    }
+    if (q.since !== undefined) {
+      where.push('created_at >= ?');
+      params.push(q.since);
+    }
+    if (q.status?.length) {
+      where.push(`status IN (${q.status.map(() => '?').join(',')})`);
+      params.push(...q.status);
+    }
+    return this.listAll<OutboxMessage>('messages', where.join(' AND '), params, `ORDER BY created_at DESC LIMIT ${q.limit ?? 1000}`);
+  }
+  saveMessage(input: Input<typeof S.OutboxMessage>) {
+    return this.save<OutboxMessage>('messages', input);
+  }
+
+  async getMeta<T = unknown>(key: string): Promise<T | null> {
+    const row = await this.db.get<{ value: string }>('SELECT value FROM meta WHERE key = ?', [key]);
+    return row ? (JSON.parse(row.value) as T) : null;
+  }
+  async setMeta(key: string, value: unknown): Promise<void> {
+    await this.db.run('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', [key, JSON.stringify(value)]);
   }
 
   // ---------- borrado / deshacer ----------

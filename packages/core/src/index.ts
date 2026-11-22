@@ -6,3 +6,6 @@ export * from './recurrence';
 export * from './adapter';
 export * from './backup';
 export * from './presets';
+export * from './reminders';
+export * from './crypto';
+export * from './requestPage';
