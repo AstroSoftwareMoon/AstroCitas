@@ -1,0 +1,33 @@
+{
+  "name": "@astrocitas/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "preview": "vite preview --port 4173",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "echo 'web: sin tests unitarios (ver e2e)'",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@astrocitas/core": "workspace:*",
+    "@astrocitas/ui": "workspace:*",
+    "@sqlite.org/sqlite-wasm": "3.51.2-build9",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@tailwindcss/vite": "^4.1.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.0",
+    "vite-plugin-pwa": "^1.0.3"
+  }
+}

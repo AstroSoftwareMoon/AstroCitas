@@ -96,7 +96,8 @@ export async function setupBusiness(db: DataAdapter, input: SetupInput): Promise
   const tz = input.timezone ?? 'Europe/Madrid';
   await db.saveBusiness({ name: input.name, kind: input.kind, timezone: tz });
   const names = input.staffNames?.filter((n) => n.trim()).length ? input.staffNames!.filter((n) => n.trim()) : ['Yo'];
-  const staffNames = input.withDemo && names.length < 3 ? [...names, ...['Marta', 'Carlos', 'Ana'].slice(0, 3 - names.length)] : names;
+  const extras = ['Marta', 'Carlos', 'Ana', 'Raúl'].filter((n) => !names.some((x) => x.trim().toLowerCase() === n.toLowerCase()));
+  const staffNames = input.withDemo && names.length < 3 ? [...names, ...extras.slice(0, 3 - names.length)] : names;
   const staff = [];
   for (const [i, name] of staffNames.entries()) {
     staff.push(await db.saveStaff({ name, color: PALETTE[i % PALETTE.length]!, sort: i, hours: defaultHours() }));
@@ -175,7 +176,7 @@ export async function setupBusiness(db: DataAdapter, input: SetupInput): Promise
               /* hueco ocupado: se ignora en datos de ejemplo */
             }
           }
-          cursor += svc.durationMin + svc.bufferAfterMin + (rand() > 0.7 ? 15 : 0);
+          cursor = Math.ceil((cursor + svc.durationMin + svc.bufferAfterMin + (rand() > 0.7 ? 15 : 0)) / 15) * 15;
         }
       }
     }

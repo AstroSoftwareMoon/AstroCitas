@@ -1,0 +1,64 @@
+/*
+ * Identidad AstroCitas: morados "espaciales" para la interfaz; logo en blanco y negro.
+ * La app importa este archivo después de `@import "tailwindcss"`.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --color-astro-50: #f5f3ff;
+  --color-astro-100: #ede9fe;
+  --color-astro-200: #ddd6fe;
+  --color-astro-300: #c4b5fd;
+  --color-astro-400: #a78bfa;
+  --color-astro-500: #8b5cf6;
+  --color-astro-600: #7c3aed;
+  --color-astro-700: #6d28d9;
+  --color-astro-800: #5b21b6;
+  --color-astro-900: #4c1d95;
+  --color-astro-950: #2e1065;
+  --color-space-900: #0f0b1e;
+  --color-space-950: #090614;
+  --animate-pop: pop 160ms ease-out;
+  --animate-slide-up: slide-up 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-fade: fade 160ms ease-out;
+}
+
+@keyframes pop { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
+@keyframes slide-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased dark:bg-space-950 dark:text-slate-100;
+    -webkit-tap-highlight-color: transparent;
+  }
+  :focus-visible { @apply outline-2 outline-offset-2 outline-astro-500; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+}
+
+@layer components {
+  .card { @apply rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-white/10 dark:bg-space-900; }
+  .input {
+    @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400
+      focus:border-astro-500 focus:ring-2 focus:ring-astro-500/30 focus:outline-none
+      dark:border-white/15 dark:bg-white/5 dark:text-slate-100;
+  }
+  .label { @apply mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300; }
+  .starfield {
+    background-image:
+      radial-gradient(1px 1px at 20% 30%, rgb(255 255 255 / 0.7), transparent),
+      radial-gradient(1px 1px at 70% 80%, rgb(255 255 255 / 0.5), transparent),
+      radial-gradient(1.5px 1.5px at 40% 70%, rgb(255 255 255 / 0.6), transparent),
+      radial-gradient(1px 1px at 85% 20%, rgb(255 255 255 / 0.8), transparent),
+      radial-gradient(1px 1px at 10% 85%, rgb(255 255 255 / 0.4), transparent),
+      radial-gradient(120% 80% at 80% 0%, rgb(124 58 237 / 0.55), transparent 60%),
+      radial-gradient(90% 70% at 0% 100%, rgb(37 99 235 / 0.35), transparent 60%);
+  }
+  .hatch {
+    background-image: repeating-linear-gradient(135deg, rgb(100 116 139 / 0.12) 0 6px, transparent 6px 12px);
+  }
+}
