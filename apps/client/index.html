@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="es" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>AstroCitas</title>
+    <script>
+      try { if (localStorage.getItem('astrocitas.reduceGlass') === '1') document.documentElement.classList.add('no-glass'); } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -10,10 +10,10 @@
   },
   "scripts": {
     "dev": "pnpm --filter @astrocitas/web dev",
-    "build": "pnpm -r --filter \"./packages/**\" --filter ./apps/web run build",
+    "build": "pnpm -r --filter \"./packages/**\" --filter ./apps/web --filter ./apps/server run build",
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r run test",
-    "e2e": "pnpm --filter @astrocitas/web e2e",
+    "e2e": "pnpm --filter @astrocitas/server build && pnpm --filter @astrocitas/web e2e",
     "screenshots": "node scripts/screenshots.mjs"
   },
   "devDependencies": {

@@ -1,0 +1,39 @@
+[package]
+name = "astrocitas"
+version = "0.1.0"
+description = "AstroCitas — agenda de citas local-first"
+authors = ["AstroCitas contributors"]
+license = "AGPL-3.0-or-later"
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "astrocitas_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-opener = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-process = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# SQLite con SQLCipher compilado dentro (cifrado en reposo opcional, sin dependencias del sistema).
+rusqlite = { version = "0.37", features = ["bundled-sqlcipher-vendored-openssl"] }
+# SMTP propio del usuario (TLS con rustls, sin OpenSSL del sistema).
+lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls-tls", "hostname"] }
+tokio = { version = "1", features = ["rt"] }
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+tauri-plugin-single-instance = "2"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

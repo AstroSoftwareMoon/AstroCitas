@@ -42,6 +42,11 @@ export interface Platform {
     read(name: string): Promise<string>;
     remove(name: string): Promise<void>;
   };
+  /** Cifrado en reposo de la base local (SQLCipher en Tauri). No disponible en web. */
+  database?: {
+    isEncrypted(): Promise<boolean>;
+    setPassword(newKey: string | null): Promise<void>;
+  };
 }
 
 // ---------- implementación web ----------

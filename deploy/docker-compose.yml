@@ -1,0 +1,63 @@
+# AstroCitas autohospedado: app + Caddy (HTTPS automático con Let's Encrypt).
+#   1. cp .env.example .env  y edita DOMAIN y ASTRO_SECRET
+#   2. docker compose up -d
+# Opcional: PostgreSQL y Redis →  docker compose --profile postgres --profile redis up -d
+#   (y descomenta DATABASE_URL / REDIS_URL en .env)
+services:
+  astrocitas:
+    image: ghcr.io/astrosoftwaremoon/astrocitas-server:${ASTROCITAS_VERSION:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PUBLIC_URL: https://${DOMAIN}
+    volumes:
+      - astrocitas-data:/data
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - astrocitas
+
+  postgres:
+    image: postgres:17-alpine
+    profiles: ["postgres"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: astrocitas
+      POSTGRES_USER: astrocitas
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cambia-esta-contraseña}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    profiles: ["redis"]
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+
+volumes:
+  astrocitas-data:
+  caddy-data:
+  caddy-config:
+  postgres-data:
+  redis-data:

@@ -7,7 +7,11 @@ export type Row = Record<string, unknown>;
  *  - escritorio/móvil: tauri-plugin-sql (apps/client)
  *  - servidor y tests: node:sqlite (apps/server, packages/core/testing)
  */
+export type SqlDialect = 'sqlite' | 'postgres';
+
 export interface SqlDriver {
+  /** Por defecto 'sqlite'. El servidor puede usar 'postgres' con el mismo repositorio. */
+  dialect?: SqlDialect;
   /** Ejecuta uno o varios statements sin parámetros. */
   exec(sql: string): Promise<void>;
   run(sql: string, params?: SqlValue[]): Promise<{ changes: number }>;
@@ -22,6 +26,10 @@ export interface SqlDriver {
 export class SerialDb {
   private queue: Promise<unknown> = Promise.resolve();
   constructor(readonly driver: SqlDriver) {}
+
+  get dialect(): SqlDialect {
+    return this.driver.dialect ?? 'sqlite';
+  }
 
   private enqueue<T>(fn: () => Promise<T>): Promise<T> {
     const p = this.queue.then(fn, fn);
@@ -44,7 +52,7 @@ export class SerialDb {
 
   transaction<T>(fn: (tx: SqlDriver) => Promise<T>): Promise<T> {
     return this.enqueue(async () => {
-      await this.driver.exec('BEGIN IMMEDIATE');
+      await this.driver.exec(this.dialect === 'postgres' ? 'BEGIN' : 'BEGIN IMMEDIATE');
       try {
         const r = await fn(this.driver);
         await this.driver.exec('COMMIT');

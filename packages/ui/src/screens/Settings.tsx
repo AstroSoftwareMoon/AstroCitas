@@ -29,6 +29,7 @@ import { errorMessage } from '../lib/errors';
 import { Button, Field, Input, PageHeader, Segmented, Select, Switch } from '../components/ui';
 import { useToast } from '../components/toast';
 import { LogoMark } from '../components/Logo';
+import { useAppControl } from '../App';
 
 export function SettingsScreen({ version }: { version?: string }) {
   const { t, lang, setLang } = useI18n();
@@ -245,16 +246,13 @@ export function SettingsScreen({ version }: { version?: string }) {
             </div>
           </Section>
 
+          <DbPassword />
+
           <AutoBackups onRestore={(text) => restoreText(text).catch((e) => toast.error(errorMessage(e, t)))} />
 
           <RequestMode business={biz} />
 
-          <Section icon={<Server size={18} />} title={t('settings.mode')}>
-            <p className="text-sm text-white/70">
-              <strong>{t('settings.serverFeatures')}:</strong> {t('settings.serverFeaturesList')}.
-            </p>
-            <p className="mt-2 text-xs text-ink-muted">{t('mode.soon')}</p>
-          </Section>
+          <ModeSection />
 
           <div className="flex items-center justify-center gap-2 py-4 text-xs text-white/40">
             <LogoMark size={16} /> AstroCitas {version ?? ''} · AGPL-3.0 · Open source
@@ -345,6 +343,87 @@ function RequestMode({ business }: { business: Business }) {
         </div>
       )}
       <p className="mt-4 text-xs text-ink-muted">{t('settings.serverOnly')}</p>
+    </Section>
+  );
+}
+
+function DbPassword() {
+  const { t } = useI18n();
+  const platform = usePlatform();
+  const toast = useToast();
+  const [enc, setEnc] = useState<boolean | null>(null);
+  const [pass, setPass] = useState('');
+  useEffect(() => {
+    platform.database?.isEncrypted().then(setEnc, () => setEnc(null));
+  }, [platform]);
+  return (
+    <Section icon={<Lock size={18} />} title={t('settings.dbPassword')}>
+      {!platform.database ? (
+        <p className="text-sm text-ink-muted">{t('settings.dbWebNote')}</p>
+      ) : (
+        <>
+          <p className="mb-3 text-sm text-ink-muted">{t('settings.dbPasswordDesc')}</p>
+          <p className="mb-3 text-sm">
+            {t('settings.storage')}: <strong>{enc ? t('settings.dbEncrypted') : t('settings.dbPlain')}</strong>
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Input type="password" value={pass} onChange={(e) => setPass(e.target.value)} className="max-w-xs" autoComplete="new-password" aria-label={t('settings.dbPassword')} />
+            <Button
+              variant="primary"
+              disabled={pass.length < 6}
+              onClick={async () => {
+                try {
+                  await platform.database!.setPassword(pass);
+                  setEnc(true);
+                  setPass('');
+                  toast.show(t('common.saved'));
+                } catch (e) {
+                  toast.error(e);
+                }
+              }}
+            >
+              {t('settings.dbSet')}
+            </Button>
+            {enc && (
+              <Button
+                variant="ghost"
+                onClick={async () => {
+                  await platform.database!.setPassword(null);
+                  setEnc(false);
+                }}
+              >
+                {t('settings.dbRemove')}
+              </Button>
+            )}
+          </div>
+        </>
+      )}
+    </Section>
+  );
+}
+
+function ModeSection() {
+  const { t } = useI18n();
+  const control = useAppControl();
+  return (
+    <Section icon={<Server size={18} />} title={t('settings.mode')}>
+      {control.mode === 'remote' && control.session ? (
+        <>
+          <p className="text-sm">{t('connect.connectedTo', { url: control.session.state.url })}</p>
+          <Button className="mt-3" variant="ghost" onClick={() => control.disconnect()}>
+            {t('connect.disconnect')}
+          </Button>
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-white/70">
+            <strong>{t('settings.serverFeatures')}:</strong> {t('settings.serverFeaturesList')}.
+          </p>
+          <Button className="mt-3" variant="primary" icon={<Server size={16} />} onClick={control.connect} data-testid="connect-server">
+            {t('connect.connectBtn')}
+          </Button>
+        </>
+      )}
     </Section>
   );
 }

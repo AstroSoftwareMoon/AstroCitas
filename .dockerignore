@@ -1,0 +1,9 @@
+**/node_modules
+**/dist
+**/target
+apps/client/src-tauri/gen
+docs/screenshots
+.git
+**/test-results
+**/playwright-report
+data

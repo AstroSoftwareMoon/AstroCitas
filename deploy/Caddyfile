@@ -1,0 +1,9 @@
+# Caddy obtiene y renueva el certificado HTTPS automáticamente para {$DOMAIN}.
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy astrocitas:8080
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+}

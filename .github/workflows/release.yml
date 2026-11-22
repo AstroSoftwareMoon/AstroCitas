@@ -1,0 +1,347 @@
+# Al crear un tag v* compila y publica en GitHub Releases:
+#   Windows (.msi, .exe NSIS, portable) · macOS (.dmg universal) · Linux (AppImage, .deb, .rpm)
+#   Android (.apk firmado, .aab) · Web (PWA .zip) · Servidor (imagen Docker amd64/arm64 en GHCR)
+# + changelog automático, smoke tests de cada artefacto, SHA256SUMS y artefactos del autoactualizador.
+#
+# Secretos opcionales (si faltan, la release se genera igual y se indica en las notas):
+#   TAURI_SIGNING_PRIVATE_KEY / TAURI_SIGNING_PRIVATE_KEY_PASSWORD  → firma del autoactualizador
+#   (variable de repo) TAURI_UPDATER_PUBKEY                          → clave pública que valida las actualizaciones
+#   ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD
+#   APPLE_CERTIFICATE / APPLE_CERTIFICATE_PASSWORD / APPLE_SIGNING_IDENTITY / APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag existente a (re)publicar, p. ej. v0.1.0'
+        required: true
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  create-release:
+    name: Crear release (borrador) + changelog
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.release.outputs.id }}
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.TAG }}
+      - id: meta
+        run: echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+      - name: Changelog automático
+        run: |
+          prev=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
+          range=${prev:+$prev..}$TAG
+          {
+            echo "## AstroCitas ${TAG}"
+            echo
+            echo "Agenda de citas local-first y open source. Descarga la versión de tu plataforma más abajo."
+            echo
+            echo "### Cambios"
+            git log --no-merges --pretty='format:%s' "$range" | grep -v '^Merge' | sed 's/^/- /'
+            echo
+            echo
+            echo "### Descargas"
+            echo "| Plataforma | Archivo |"
+            echo "|---|---|"
+            echo "| Windows | \`.msi\`, \`-setup.exe\` (NSIS) o \`-portable.exe\` |"
+            echo "| macOS (Intel + Apple Silicon) | \`_universal.dmg\` |"
+            echo "| Linux | \`.AppImage\`, \`.deb\`, \`.rpm\` |"
+            echo "| Android | \`.apk\` (instalación directa) o \`.aab\` (Play Store) |"
+            echo "| Web (PWA) | \`astrocitas-web-*.zip\` — súbelo a cualquier hosting estático |"
+            echo "| Servidor | \`docker pull ghcr.io/astrosoftwaremoon/astrocitas-server:${TAG#v}\` |"
+            echo
+            echo "Verifica la integridad con \`sha256sum -c SHA256SUMS.txt\`."
+          } > notes.md
+          cat notes.md
+      - id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: AstroCitas ${{ env.TAG }}
+          body_path: notes.md
+          draft: true
+          prerelease: ${{ contains(env.TAG, '-') }}
+
+  desktop:
+    name: Escritorio (${{ matrix.name }})
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-22.04
+            args: ''
+          - name: Windows
+            os: windows-latest
+            args: ''
+          - name: macOS universal
+            os: macos-latest
+            args: '--target universal-apple-darwin'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/client/src-tauri -> target
+      - name: Dependencias de sistema (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf rpm xvfb
+      - run: pnpm install --frozen-lockfile
+      - name: Configurar autoactualizador
+        shell: bash
+        env:
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+          PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+        run: |
+          node -e '
+            const fs = require("fs"); const p = "apps/client/src-tauri/tauri.conf.json";
+            const c = JSON.parse(fs.readFileSync(p, "utf8"));
+            if (process.env.HAS_KEY !== "true") { c.bundle.createUpdaterArtifacts = false; console.log("Sin TAURI_SIGNING_PRIVATE_KEY: no se generan artefactos de actualización"); }
+            if (process.env.PUBKEY) c.plugins.updater.pubkey = process.env.PUBKEY;
+            fs.writeFileSync(p, JSON.stringify(c, null, 2));'
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          projectPath: apps/client
+          tauriScript: pnpm tauri
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: ${{ matrix.args }}
+          includeUpdaterJson: true
+      - name: Versión portable (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          v=${{ needs.create-release.outputs.version }}
+          cp apps/client/src-tauri/target/release/astrocitas.exe "AstroCitas_${v}_x64-portable.exe"
+          gh release upload "$TAG" "AstroCitas_${v}_x64-portable.exe" --clobber
+      - name: Smoke test (Linux .deb + AppImage)
+        if: runner.os == 'Linux'
+        run: |
+          deb=$(ls apps/client/src-tauri/target/release/bundle/deb/*.deb)
+          dpkg-deb --info "$deb"
+          rpm -qip apps/client/src-tauri/target/release/bundle/rpm/*.rpm
+          sudo apt-get install -y "./$deb"
+          # La app debe arrancar y seguir viva 15 s (timeout devuelve 124).
+          set +e; xvfb-run -a timeout 15 astrocitas; code=$?; set -e
+          test "$code" = 124 || { echo "La app terminó con código $code"; exit 1; }
+          echo "✓ AstroCitas arranca en Linux"
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $p = Start-Process apps/client/src-tauri/target/release/astrocitas.exe -PassThru
+          Start-Sleep -Seconds 15
+          if ($p.HasExited) { Write-Error "La app terminó con código $($p.ExitCode)"; exit 1 }
+          Stop-Process -Id $p.Id -Force
+          Write-Host "✓ AstroCitas arranca en Windows"
+      - name: Smoke test (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          dmg=$(ls apps/client/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg)
+          hdiutil verify "$dmg"
+          lipo -info apps/client/src-tauri/target/universal-apple-darwin/release/astrocitas | grep -q "x86_64 arm64"
+          echo "✓ DMG válido y binario universal"
+
+  android:
+    name: Android (.apk + .aab)
+    needs: create-release
+    runs-on: ubuntu-latest
+    env:
+      NDK_VERSION: 27.2.12479018
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - name: NDK
+        run: |
+          sdkmanager --install "ndk;${NDK_VERSION}" "build-tools;34.0.0" "platforms;android-34"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/client/src-tauri -> target
+      - run: pnpm install --frozen-lockfile
+      - name: Generar proyecto Android
+        working-directory: apps/client
+        run: pnpm tauri android init --ci
+      - name: Compilar
+        working-directory: apps/client
+        run: pnpm tauri android build --apk --aab --target aarch64 --target armv7 --target x86_64
+      - name: Firmar
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          v=${{ needs.create-release.outputs.version }}
+          bt=$ANDROID_HOME/build-tools/34.0.0
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > release.jks
+          else
+            echo "::warning::Sin ANDROID_KEYSTORE_BASE64: se firma con una clave de prueba (instalable, pero no actualizable desde otra firma)."
+            KS_PASS=astrocitas; KEY_ALIAS=astrocitas; KEY_PASS=astrocitas
+            keytool -genkeypair -keystore release.jks -storepass "$KS_PASS" -keypass "$KEY_PASS" -alias "$KEY_ALIAS" \
+              -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=AstroCitas, O=AstroCitas, C=ES"
+          fi
+          out=apps/client/src-tauri/gen/android/app/build/outputs
+          apk=$(ls $out/apk/universal/release/*.apk | head -1)
+          aab=$(ls $out/bundle/universalRelease/*.aab | head -1)
+          $bt/zipalign -f -p 4 "$apk" aligned.apk
+          $bt/apksigner sign --ks release.jks --ks-pass "pass:$KS_PASS" --ks-key-alias "$KEY_ALIAS" --key-pass "pass:$KEY_PASS" \
+            --out "AstroCitas_${v}_android-universal.apk" aligned.apk
+          $bt/apksigner verify --verbose "AstroCitas_${v}_android-universal.apk"
+          cp "$aab" "AstroCitas_${v}_android.aab"
+          jarsigner -keystore release.jks -storepass "$KS_PASS" -keypass "$KEY_PASS" "AstroCitas_${v}_android.aab" "$KEY_ALIAS"
+          jarsigner -verify "AstroCitas_${v}_android.aab"
+          rm -f release.jks
+      - name: Subir
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$TAG" AstroCitas_*_android* --clobber
+
+  web:
+    name: Web (PWA)
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm build
+      - name: Empaquetar y smoke test
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          v=${{ needs.create-release.outputs.version }}
+          (cd apps/web/dist && zip -qr "../../../astrocitas-web-${v}.zip" .)
+          unzip -l "astrocitas-web-${v}.zip" | grep -E "index.html|sw.js|manifest.webmanifest"
+          npx --yes serve@14 -s apps/web/dist -l 4174 & sleep 3
+          curl -fsS http://localhost:4174/ | grep -q '<div id="root">'
+          echo "✓ PWA servida correctamente"
+          gh release upload "$TAG" "astrocitas-web-${v}.zip" --clobber
+
+  docker:
+    name: Servidor Docker (amd64/arm64)
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: img
+        run: echo "name=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/astrocitas-server" >> "$GITHUB_OUTPUT"
+      - name: Smoke test (amd64)
+        run: |
+          docker build -t astrocitas-server:smoke -f apps/server/Dockerfile .
+          docker run -d --name smoke -p 8080:8080 -e ASTRO_SECRET=smoke-secret-smoke-secret-123456 astrocitas-server:smoke
+          for i in $(seq 1 30); do curl -fsS http://localhost:8080/health && break; sleep 1; done
+          curl -fsS http://localhost:8080/health | grep -q '"status":"ok"'
+          echo "✓ /health responde"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/server/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.img.outputs.name }}:${{ needs.create-release.outputs.version }}
+            ${{ steps.img.outputs.name }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.create-release.outputs.version }}
+            org.opencontainers.image.licenses=AGPL-3.0-or-later
+
+  publish:
+    name: Checksums y publicar
+    needs: [create-release, desktop, android, web, docker]
+    if: always() && needs.create-release.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: SHA256SUMS + publicar
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mkdir assets && cd assets
+          gh release download "$TAG" --pattern '*' --skip-existing
+          rm -f SHA256SUMS.txt
+          ls -la
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          gh release upload "$TAG" SHA256SUMS.txt --clobber
+          if [ "${{ needs.desktop.result }}${{ needs.android.result }}${{ needs.web.result }}${{ needs.docker.result }}" = "successsuccesssuccesssuccess" ]; then
+            gh release edit "$TAG" --draft=false --latest
+          else
+            echo "::warning::Algún artefacto falló; la release queda en borrador para revisarla."
+            gh release edit "$TAG" --draft=false --prerelease
+          fi

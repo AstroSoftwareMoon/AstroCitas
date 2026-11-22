@@ -1,0 +1,51 @@
+# iOS: proyecto y workflow preparados. Firmar y distribuir requiere una cuenta de Apple Developer
+# (99 $/año) y estos secretos: APPLE_DEVELOPMENT_TEAM, APPLE_CERTIFICATE (p12 en base64),
+# APPLE_CERTIFICATE_PASSWORD, APPLE_PROVISIONING_PROFILE (base64), APPLE_API_KEY_ID, APPLE_API_ISSUER,
+# APPLE_API_KEY (p8 en base64). Ver docs/IOS.md.
+name: iOS (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      export_method:
+        description: 'app-store-connect | release-testing | debugging'
+        default: release-testing
+
+jobs:
+  ios:
+    runs-on: macos-latest
+    if: ${{ vars.APPLE_DEVELOPMENT_TEAM != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+      - run: pnpm install --frozen-lockfile
+      - name: Importar certificado y perfil
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+        run: |
+          kc=build.keychain; security create-keychain -p ci $kc; security default-keychain -s $kc; security unlock-keychain -p ci $kc
+          echo "$APPLE_CERTIFICATE" | base64 -d > cert.p12
+          security import cert.p12 -k $kc -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k ci $kc
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$APPLE_PROVISIONING_PROFILE" | base64 -d > ~/Library/MobileDevice/Provisioning\ Profiles/astrocitas.mobileprovision
+      - name: Compilar IPA
+        working-directory: apps/client
+        env:
+          APPLE_DEVELOPMENT_TEAM: ${{ vars.APPLE_DEVELOPMENT_TEAM }}
+        run: |
+          pnpm tauri ios init --ci
+          pnpm tauri ios build --export-method ${{ github.event.inputs.export_method }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: astrocitas-ios
+          path: apps/client/src-tauri/gen/apple/build/arm64/*.ipa

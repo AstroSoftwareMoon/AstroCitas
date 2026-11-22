@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./sql": "./src/sql/index.ts",
-    "./testing": "./src/testing/node-sqlite-driver.ts"
+    "./testing": "./src/testing/node-sqlite-driver.ts",
+    "./node": "./src/testing/node-sqlite-driver.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
@@ -20,6 +21,7 @@
     "zod": "^4.1.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.3.7",
     "@types/luxon": "^3.7.1",
     "@types/node": "^22.10.0",
     "typescript": "^5.9.3",

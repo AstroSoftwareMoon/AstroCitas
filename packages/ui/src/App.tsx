@@ -1,6 +1,8 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { CalendarDays, Cog, MessageCircle, Scissors, Server, Smartphone, Users, UserRound } from 'lucide-react';
-import type { DataAdapter } from '@astrocitas/core';
+import { createRemoteAdapter, ServerSession, type DataAdapter } from '@astrocitas/core';
+import { ConnectScreen, loadSession, persistSession } from './screens/Connect';
+import { ServerScreen } from './screens/Server';
 import { I18nProvider, useI18n, type TKey } from './i18n';
 import { DataProvider, useBusiness, useDb, type StorageInfo } from './lib/data';
 import { PlatformProvider, usePlatform, webPlatform, type Platform } from './lib/platform';
@@ -25,22 +27,62 @@ export interface OpenedStore {
 
 export interface AstroAppProps {
   /** Abre la base de datos local de la plataforma (OPFS en web, SQLite nativo en Tauri). */
-  openLocal: () => Promise<OpenedStore>;
+  openLocal: (password?: string) => Promise<OpenedStore>;
   /** Versión mostrada en Ajustes. */
   version?: string;
   /** Capacidades de la plataforma (Tauri sustituye a la web). */
   platform?: Platform;
+  /** Modo servidor con caché local y sincronización offline (fase 5). */
+  openSynced?: (session: ServerSession) => Promise<OpenedStore>;
 }
 
-const MODE_KEY = 'astrocitas.mode';
+export interface AppControl {
+  mode: 'local' | 'remote';
+  session: ServerSession | null;
+  connect(): void;
+  disconnect(): Promise<void>;
+}
+export const AppControlContext = createContext<AppControl>({ mode: 'local', session: null, connect: () => undefined, disconnect: async () => undefined });
+export const useAppControl = () => useContext(AppControlContext);
 
-function readMode(): 'local' | null {
+const MODE_KEY = 'astrocitas.mode';
+type Mode = 'local' | 'remote';
+
+function readMode(): Mode | null {
   try {
-    return localStorage.getItem(MODE_KEY) === 'local' ? 'local' : null;
+    const m = localStorage.getItem(MODE_KEY);
+    return m === 'local' || m === 'remote' ? m : null;
   } catch {
     return null;
   }
 }
+function writeMode(m: Mode | null) {
+  try {
+    if (m) localStorage.setItem(MODE_KEY, m);
+    else localStorage.removeItem(MODE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Ajustes de dispositivo en modo servidor (avisos, SMTP local…): se quedan en este equipo. */
+const deviceMeta = {
+  get: (k: string) => {
+    try {
+      const v = localStorage.getItem(`astrocitas.meta.${k}`);
+      return v ? JSON.parse(v) : null;
+    } catch {
+      return null;
+    }
+  },
+  set: (k: string, v: unknown) => {
+    try {
+      localStorage.setItem(`astrocitas.meta.${k}`, JSON.stringify(v));
+    } catch {
+      /* ignore */
+    }
+  },
+};
 
 export function AstroApp(props: AstroAppProps) {
   useEffect(initTheme, []);
@@ -55,35 +97,99 @@ export function AstroApp(props: AstroAppProps) {
   );
 }
 
-function Boot({ openLocal, version }: AstroAppProps) {
-  const [mode, setMode] = useState(readMode);
+function Boot({ openLocal, version, openSynced }: AstroAppProps) {
+  const [mode, setModeState] = useState(readMode);
+  const [connecting, setConnecting] = useState(false);
   const [store, setStore] = useState<OpenedStore | null>(null);
+  const [session, setSession] = useState<ServerSession | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [locked, setLocked] = useState(false);
 
+  const setMode = (m: Mode | null) => {
+    writeMode(m);
+    setModeState(m);
+  };
+
+  const open = (password?: string) =>
+    openLocal(password).then(
+      (s) => {
+        setLocked(false);
+        setStore(s);
+      },
+      (e) => {
+        const msg = String(e?.message ?? e);
+        if (msg.includes('ASTRO_LOCKED')) setLocked(true);
+        else setError(msg);
+        if (password) throw e;
+      },
+    );
+
+  const openRemote = async (s: ServerSession) => {
+    setSession(s);
+    // Con caché local + sincronización si la plataforma lo ofrece; si no, en línea.
+    if (openSynced) setStore(await openSynced(s));
+    else setStore({ db: createRemoteAdapter(s, deviceMeta), storage: { kind: 'remote', persistent: true } });
+  };
+
+  const pending = useRef<ServerSession | null>(null);
   useEffect(() => {
-    if (mode !== 'local' || store) return;
-    openLocal().then(setStore, (e) => setError(String(e?.message ?? e)));
-  }, [mode, store, openLocal]);
+    if (store || connecting) return;
+    if (mode === 'local') open();
+    if (mode === 'remote') {
+      // Una sola sesión viva: la recién iniciada o la guardada (nunca dos rotando el mismo token).
+      const s = pending.current ?? (loadSession() ? new ServerSession(loadSession()!, persistSession, undefined, loadSession) : null);
+      pending.current = null;
+      if (!s) setConnecting(true);
+      else openRemote(s).catch((e) => setError(String(e?.message ?? e)));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, connecting]);
 
-  if (error) return <Splash><p className="max-w-md text-center text-sm text-red-300">{error}</p></Splash>;
-  if (!mode)
+  const control: AppControl = {
+    mode: mode ?? 'local',
+    session,
+    connect: () => setConnecting(true),
+    disconnect: async () => {
+      await session?.logout();
+      setSession(null);
+      setStore(null);
+      setMode('local');
+    },
+  };
+
+  if (connecting)
     return (
-      <ModeChooser
-        onLocal={() => {
-          try {
-            localStorage.setItem(MODE_KEY, 'local');
-          } catch {
-            /* ignore */
-          }
-          setMode('local');
+      <ConnectScreen
+        openLocal={mode === 'remote' ? undefined : store ? async () => store : () => openLocal()}
+        onCancel={() => setConnecting(false)}
+        onConnected={(s) => {
+          pending.current = s;
+          setStore(null);
+          setMode('remote');
+          setConnecting(false);
         }}
       />
     );
+  if (locked) return <Unlock onUnlock={open} />;
+  if (error)
+    return (
+      <Splash>
+        <p className="max-w-md text-center text-sm text-red-300">{error}</p>
+        {mode === 'remote' && (
+          <button type="button" className="press rounded-full bg-white px-4 py-2 text-sm font-semibold text-black" onClick={() => { setError(null); setConnecting(true); }}>
+            {'Reconectar'}
+          </button>
+        )}
+      </Splash>
+    );
+  if (!mode) return <ModeChooser onLocal={() => setMode('local')} onRemote={() => setConnecting(true)} />;
   if (!store) return <Splash />;
   return (
-    <DataProvider db={store.db} storage={store.storage}>
-      <Gate version={version} />
-    </DataProvider>
+    <AppControlContext.Provider value={control}>
+      <DataProvider db={store.db} storage={store.storage}>
+        <Gate version={version} />
+      </DataProvider>
+    </AppControlContext.Provider>
   );
 }
 
@@ -96,7 +202,42 @@ function Splash({ children }: { children?: ReactNode }) {
   );
 }
 
-function ModeChooser({ onLocal }: { onLocal(): void }) {
+function Unlock({ onUnlock }: { onUnlock(password: string): Promise<void> }) {
+  const { t } = useI18n();
+  const [pass, setPass] = useState('');
+  const [bad, setBad] = useState(false);
+  return (
+    <div className="flex min-h-full items-center justify-center p-4 text-white">
+      <form
+        className="glass w-full max-w-sm rounded-[32px] p-6 text-center animate-pop"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setBad(false);
+          onUnlock(pass).catch(() => setBad(true));
+        }}
+      >
+        <LogoMark size={48} className="mx-auto" />
+        <h1 className="mt-4 text-2xl font-semibold">{t('lock.title')}</h1>
+        <p className="mt-1 text-sm text-ink-muted">{t('lock.desc')}</p>
+        <input
+          type="password"
+          autoFocus
+          value={pass}
+          onChange={(e) => setPass(e.target.value)}
+          className="input mt-5 text-center"
+          aria-label={t('lock.password')}
+          placeholder={t('lock.password')}
+        />
+        {bad && <p className="mt-2 text-sm text-red-300">{t('lock.wrong')}</p>}
+        <button type="submit" className="press mt-4 h-11 w-full rounded-full bg-white font-semibold text-black">
+          {t('lock.unlock')}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function ModeChooser({ onLocal, onRemote }: { onLocal(): void; onRemote(): void }) {
   const { t } = useI18n();
   return (
     <div className="flex min-h-full items-center justify-center p-4 text-white">
@@ -122,14 +263,18 @@ function ModeChooser({ onLocal }: { onLocal(): void }) {
             <div className="font-semibold">{t('mode.local')}</div>
             <p className="mt-1 text-sm text-ink-muted">{t('mode.localDesc')}</p>
           </button>
-          <div className="rounded-[28px] border border-white/[0.07] bg-white/[0.03] p-5 text-left opacity-70" aria-disabled>
-            <span className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white/70">
+          <button
+            type="button"
+            onClick={onRemote}
+            data-testid="mode-remote"
+            className="glass press group rounded-[28px] p-5 text-left hover:[--glass-film:rgb(255_255_255/0.09)]"
+          >
+            <span className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white">
               <Server size={20} />
             </span>
             <div className="font-semibold">{t('mode.remote')}</div>
             <p className="mt-1 text-sm text-ink-muted">{t('mode.remoteDesc')}</p>
-            <span className="mt-3 inline-block rounded-full bg-white/10 px-2 py-0.5 text-xs">{t('mode.soon')}</span>
-          </div>
+          </button>
         </div>
       </div>
     </div>
@@ -154,6 +299,8 @@ const NAV: { path: string; key: TKey; icon: typeof CalendarDays }[] = [
 
 function Shell({ version }: { version?: string }) {
   const { t } = useI18n();
+  const control = useAppControl();
+  const nav = control.mode === 'remote' ? [...NAV.slice(0, -1), { path: '/server', key: 'nav.server' as TKey, icon: Server }, NAV[NAV.length - 1]!] : NAV;
   const { data: business } = useBusiness();
   const [path, params] = useRoute();
   useBackgroundJobs(useDb(), usePlatform());
@@ -163,6 +310,9 @@ function Shell({ version }: { version?: string }) {
   switch (section) {
     case '/clients':
       screen = <ClientsScreen selectedId={path.split('/')[2]} />;
+      break;
+    case '/server':
+      screen = control.session ? <ServerScreen session={control.session} onLogout={() => control.disconnect()} /> : null;
       break;
     case '/messages':
       screen = <MessagesScreen />;
@@ -187,7 +337,7 @@ function Shell({ version }: { version?: string }) {
         <Logo className="px-3" />
         <div className="mt-1 truncate px-3 text-sm text-ink-muted">{business?.name}</div>
         <nav className="mt-7 flex flex-col gap-1" aria-label="Principal">
-          {NAV.map((n) => (
+          {nav.map((n) => (
             <a
               key={n.path}
               href={`#${n.path}`}
@@ -204,9 +354,9 @@ function Shell({ version }: { version?: string }) {
         </nav>
         <div className="mt-auto rounded-3xl bg-white/[0.05] p-3.5 text-xs text-ink-muted">
           <span className="inline-flex items-center gap-1.5 font-medium text-emerald-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-current shadow-[0_0_8px_currentColor]" /> Local
+            <span className="h-1.5 w-1.5 rounded-full bg-current shadow-[0_0_8px_currentColor]" /> {control.mode === 'remote' ? t('nav.server') : 'Local'}
           </span>
-          <p className="mt-1">{t('settings.localMode')}</p>
+          <p className="mt-1 truncate">{control.session ? new URL(control.session.state.url).host : t('settings.localMode')}</p>
         </div>
       </aside>
       <main className="flex min-w-0 flex-1 flex-col pb-24 md:pb-0">{screen}</main>
@@ -215,7 +365,7 @@ function Shell({ version }: { version?: string }) {
         className="glass fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 flex rounded-[32px] p-1.5 md:hidden"
         aria-label="Principal"
       >
-        {NAV.map((n) => (
+        {nav.map((n) => (
           <button
             key={n.path}
             type="button"

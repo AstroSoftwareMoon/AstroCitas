@@ -64,12 +64,19 @@ export class SqlAdapter implements DataAdapter {
 
   static async open(driver: SqlDriver, opts: SqlAdapterOptions = {}): Promise<SqlAdapter> {
     const a = new SqlAdapter(driver, opts);
-    await a.db.exec('PRAGMA foreign_keys = ON');
+    if (a.db.dialect === 'sqlite') await a.db.exec('PRAGMA foreign_keys = ON');
     await migrate(a.db);
     return a;
   }
 
   // ---------- genéricos ----------
+
+  private nocase(col: string) {
+    return this.db.dialect === 'postgres' ? `lower(${col})` : `${col} COLLATE NOCASE`;
+  }
+  private get like() {
+    return this.db.dialect === 'postgres' ? 'ILIKE' : 'LIKE';
+  }
 
   private async listAll<T>(entity: EntityName, where = 'deleted_at IS NULL', params: SqlValue[] = [], order = ''): Promise<T[]> {
     const rows = await this.db.all(`SELECT * FROM ${TABLES[entity].table} WHERE ${where} ${order}`, params);
@@ -135,7 +142,7 @@ export class SqlAdapter implements DataAdapter {
       'staff',
       opts.includeInactive ? 'deleted_at IS NULL' : 'deleted_at IS NULL AND active = 1',
       [],
-      'ORDER BY sort, name COLLATE NOCASE',
+      `ORDER BY sort, ${this.nocase('name')}`,
     );
   }
   saveStaff(input: Input<typeof S.Staff>) {
@@ -147,7 +154,7 @@ export class SqlAdapter implements DataAdapter {
       'services',
       opts.includeInactive ? 'deleted_at IS NULL' : 'deleted_at IS NULL AND active = 1',
       [],
-      'ORDER BY sort, category, name COLLATE NOCASE',
+      `ORDER BY sort, category, ${this.nocase('name')}`,
     );
   }
   saveService(input: Input<typeof S.Service>) {
@@ -159,13 +166,13 @@ export class SqlAdapter implements DataAdapter {
   async listClients(opts: { search?: string; limit?: number } = {}): Promise<Client[]> {
     const limit = opts.limit ?? 500;
     const q = opts.search?.trim();
-    if (!q) return this.listAll<Client>('clients', 'deleted_at IS NULL', [], `ORDER BY name COLLATE NOCASE LIMIT ${limit}`);
+    if (!q) return this.listAll<Client>('clients', 'deleted_at IS NULL', [], `ORDER BY ${this.nocase('name')} LIMIT ${limit}`);
     const like = `%${q.replace(/[%_]/g, '')}%`;
     const digits = q.replace(/\D/g, '');
     const rows = await this.db.all(
-      `SELECT * FROM clients WHERE deleted_at IS NULL AND (name LIKE ? OR email LIKE ? OR tags LIKE ?${
+      `SELECT * FROM clients WHERE deleted_at IS NULL AND (name ${this.like} ? OR email ${this.like} ? OR tags ${this.like} ?${
         digits.length >= 3 ? " OR REPLACE(REPLACE(phone, ' ', ''), '+', '') LIKE ?" : ''
-      }) ORDER BY name COLLATE NOCASE LIMIT ${limit}`,
+      }) ORDER BY ${this.nocase('name')} LIMIT ${limit}`,
       digits.length >= 3 ? [like, like, like, `%${digits}%`] : [like, like, like],
     );
     return rows.map((r) => rowToEntity<Client>('clients', r));

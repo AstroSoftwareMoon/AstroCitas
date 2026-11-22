@@ -11,3 +11,4 @@ test-results/
 src-tauri/target/
 *.db
 *.db-*
+.local-proxy-ca.crt

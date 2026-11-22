@@ -9,3 +9,4 @@ export * from './presets';
 export * from './reminders';
 export * from './crypto';
 export * from './requestPage';
+export * from './remote';

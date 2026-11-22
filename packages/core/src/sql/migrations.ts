@@ -1,14 +1,73 @@
 import type { SerialDb } from './driver';
 
+/** SQLite → PostgreSQL para el DDL común: marcas de tiempo en BIGINT e índices sin COLLATE. */
+function pgify(sql: string): string {
+  return sql.replace(/\bINTEGER\b/g, 'BIGINT').replace(/\(name COLLATE NOCASE\)/g, '(lower(name))');
+}
+
+const SQLITE_OVERLAP_TRIGGERS = /* sql */ `
+-- Prevención de doble reserva en el propio motor: ninguna cita activa puede solaparse
+-- con otra del mismo profesional, venga de donde venga la escritura.
+CREATE TRIGGER IF NOT EXISTS appointments_no_overlap_ins
+BEFORE INSERT ON appointments
+WHEN NEW.deleted_at IS NULL AND NEW.status IN ('booked','confirmed','completed')
+BEGIN
+  SELECT RAISE(ABORT, 'ASTRO_OVERLAP') WHERE EXISTS (
+    SELECT 1 FROM appointments a
+    WHERE a.staff_id = NEW.staff_id AND a.id <> NEW.id AND a.deleted_at IS NULL
+      AND a.status IN ('booked','confirmed','completed')
+      AND a.starts_at < NEW.ends_at AND NEW.starts_at < a.ends_at);
+END;
+CREATE TRIGGER IF NOT EXISTS appointments_no_overlap_upd
+BEFORE UPDATE ON appointments
+WHEN NEW.deleted_at IS NULL AND NEW.status IN ('booked','confirmed','completed')
+BEGIN
+  SELECT RAISE(ABORT, 'ASTRO_OVERLAP') WHERE EXISTS (
+    SELECT 1 FROM appointments a
+    WHERE a.staff_id = NEW.staff_id AND a.id <> NEW.id AND a.deleted_at IS NULL
+      AND a.status IN ('booked','confirmed','completed')
+      AND a.starts_at < NEW.ends_at AND NEW.starts_at < a.ends_at);
+END;
+
+`;
+
+const PG_OVERLAP_TRIGGER = /* sql */ `
+CREATE OR REPLACE FUNCTION astro_no_overlap() RETURNS trigger AS $$
+BEGIN
+  IF NEW.deleted_at IS NULL AND NEW.status IN ('booked','confirmed','completed') AND EXISTS (
+    SELECT 1 FROM appointments a
+    WHERE a.staff_id = NEW.staff_id AND a.id <> NEW.id AND a.deleted_at IS NULL
+      AND a.status IN ('booked','confirmed','completed')
+      AND a.starts_at < NEW.ends_at AND NEW.starts_at < a.ends_at) THEN
+    RAISE EXCEPTION 'ASTRO_OVERLAP';
+  END IF;
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS appointments_no_overlap ON appointments;
+CREATE TRIGGER appointments_no_overlap BEFORE INSERT OR UPDATE ON appointments
+FOR EACH ROW EXECUTE FUNCTION astro_no_overlap();
+`;
+
 /**
  * Migraciones versionadas (PRAGMA user_version). El MISMO esquema se usa en el dispositivo
  * (modo local) y en el servidor con SQLite (modo autohospedado). Nunca edites una migración
  * publicada: añade una nueva.
  */
-export const MIGRATIONS: { version: number; name: string; sql: string }[] = [
+export interface Migration {
+  version: number;
+  name: string;
+  sql: string;
+  /** Extra solo SQLite / solo PostgreSQL. */
+  sqlite?: string;
+  postgres?: string;
+}
+
+export const MIGRATIONS: Migration[] = [
   {
     version: 1,
     name: 'esquema inicial',
+    sqlite: SQLITE_OVERLAP_TRIGGERS,
+    postgres: PG_OVERLAP_TRIGGER,
     sql: /* sql */ `
 CREATE TABLE IF NOT EXISTS business (
   id TEXT PRIMARY KEY,
@@ -112,29 +171,6 @@ CREATE INDEX IF NOT EXISTS appointments_range ON appointments(starts_at, ends_at
 CREATE INDEX IF NOT EXISTS appointments_staff ON appointments(staff_id, starts_at);
 CREATE INDEX IF NOT EXISTS appointments_client ON appointments(client_id, starts_at);
 
--- Prevención de doble reserva en el propio motor: ninguna cita activa puede solaparse
--- con otra del mismo profesional, venga de donde venga la escritura.
-CREATE TRIGGER IF NOT EXISTS appointments_no_overlap_ins
-BEFORE INSERT ON appointments
-WHEN NEW.deleted_at IS NULL AND NEW.status IN ('booked','confirmed','completed')
-BEGIN
-  SELECT RAISE(ABORT, 'ASTRO_OVERLAP') WHERE EXISTS (
-    SELECT 1 FROM appointments a
-    WHERE a.staff_id = NEW.staff_id AND a.id <> NEW.id AND a.deleted_at IS NULL
-      AND a.status IN ('booked','confirmed','completed')
-      AND a.starts_at < NEW.ends_at AND NEW.starts_at < a.ends_at);
-END;
-CREATE TRIGGER IF NOT EXISTS appointments_no_overlap_upd
-BEFORE UPDATE ON appointments
-WHEN NEW.deleted_at IS NULL AND NEW.status IN ('booked','confirmed','completed')
-BEGIN
-  SELECT RAISE(ABORT, 'ASTRO_OVERLAP') WHERE EXISTS (
-    SELECT 1 FROM appointments a
-    WHERE a.staff_id = NEW.staff_id AND a.id <> NEW.id AND a.deleted_at IS NULL
-      AND a.status IN ('booked','confirmed','completed')
-      AND a.starts_at < NEW.ends_at AND NEW.starts_at < a.ends_at);
-END;
-
 CREATE TABLE IF NOT EXISTS waitlist (
   id TEXT PRIMARY KEY,
   client_id TEXT NOT NULL REFERENCES clients(id),
@@ -209,20 +245,33 @@ CREATE INDEX IF NOT EXISTS outbox_status ON outbox_messages(status, created_at);
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;
 
-export async function migrate(db: SerialDb): Promise<number> {
-  const row = await db.get<{ user_version: number }>('PRAGMA user_version');
-  const current = Number(row?.user_version ?? 0);
-  if (current > SCHEMA_VERSION) {
+/** Aplica migraciones versionadas. `list` permite reutilizarlo para otras bases (p. ej. la del sistema del servidor). */
+export async function migrate(db: SerialDb, list: Migration[] = MIGRATIONS): Promise<number> {
+  const target = list[list.length - 1]!.version;
+  const pg = db.dialect === 'postgres';
+  let current: number;
+  if (pg) {
+    await db.exec('CREATE TABLE IF NOT EXISTS astro_schema (version INTEGER NOT NULL)');
+    const row = await db.get<{ version: number }>('SELECT max(version) AS version FROM astro_schema');
+    current = Number(row?.version ?? 0);
+  } else {
+    const row = await db.get<{ user_version: number }>('PRAGMA user_version');
+    current = Number(row?.user_version ?? 0);
+  }
+  if (current > target) {
     throw new Error(
-      `La base de datos es de una versión más nueva (v${current}) que esta app (v${SCHEMA_VERSION}). Actualiza AstroCitas.`,
+      `La base de datos es de una versión más nueva (v${current}) que esta app (v${target}). Actualiza AstroCitas.`,
     );
   }
-  for (const m of MIGRATIONS) {
+  for (const m of list) {
     if (m.version <= current) continue;
     await db.transaction(async (tx) => {
-      await tx.exec(m.sql);
-      await tx.exec(`PRAGMA user_version = ${m.version}`);
+      await tx.exec(pg ? pgify(m.sql) : m.sql);
+      const extra = pg ? m.postgres : m.sqlite;
+      if (extra) await tx.exec(extra);
+      if (pg) await tx.run('INSERT INTO astro_schema (version) VALUES (?)', [m.version]);
+      else await tx.exec(`PRAGMA user_version = ${m.version}`);
     });
   }
-  return SCHEMA_VERSION;
+  return target;
 }

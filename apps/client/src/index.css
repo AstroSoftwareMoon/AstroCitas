@@ -1,0 +1,4 @@
+@import "tailwindcss";
+@import "@fontsource-variable/outfit";
+@import "@astrocitas/ui/styles.css";
+@source "../../../packages/ui/src";
