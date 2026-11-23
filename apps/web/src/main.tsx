@@ -15,6 +15,6 @@ async function openLocal(): Promise<OpenedStore> {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AstroApp openLocal={openLocal} version={__APP_VERSION__} />
+    <AstroApp openLocal={openLocal} openCache={async (name) => (await openWebSqlite(name)).driver} version={__APP_VERSION__} />
   </StrictMode>,
 );

@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { CalendarDays, Cog, MessageCircle, Scissors, Server, Smartphone, Users, UserRound } from 'lucide-react';
-import { createRemoteAdapter, ServerSession, type DataAdapter } from '@astrocitas/core';
+import { createRemoteAdapter, ServerSession, type DataAdapter, type SyncEngine } from '@astrocitas/core';
+import type { SqlDriver } from '@astrocitas/core/sql';
+import { openSyncedStore, SyncRunner, SyncBadge } from './lib/sync';
 import { ConnectScreen, loadSession, persistSession } from './screens/Connect';
 import { ServerScreen } from './screens/Server';
 import { I18nProvider, useI18n, type TKey } from './i18n';
@@ -32,17 +34,21 @@ export interface AstroAppProps {
   version?: string;
   /** Capacidades de la plataforma (Tauri sustituye a la web). */
   platform?: Platform;
-  /** Modo servidor con caché local y sincronización offline (fase 5). */
-  openSynced?: (session: ServerSession) => Promise<OpenedStore>;
+  /**
+   * Abre una base SQLite local con nombre (caché offline del modo servidor). Si la plataforma la ofrece,
+   * el modo servidor funciona sin conexión y sincroniza; si no, trabaja en línea contra la API.
+   */
+  openCache?: (name: string) => Promise<SqlDriver>;
 }
 
 export interface AppControl {
   mode: 'local' | 'remote';
   session: ServerSession | null;
+  sync: SyncEngine | null;
   connect(): void;
   disconnect(): Promise<void>;
 }
-export const AppControlContext = createContext<AppControl>({ mode: 'local', session: null, connect: () => undefined, disconnect: async () => undefined });
+export const AppControlContext = createContext<AppControl>({ mode: 'local', session: null, sync: null, connect: () => undefined, disconnect: async () => undefined });
 export const useAppControl = () => useContext(AppControlContext);
 
 const MODE_KEY = 'astrocitas.mode';
@@ -97,11 +103,12 @@ export function AstroApp(props: AstroAppProps) {
   );
 }
 
-function Boot({ openLocal, version, openSynced }: AstroAppProps) {
+function Boot({ openLocal, version, openCache }: AstroAppProps) {
   const [mode, setModeState] = useState(readMode);
   const [connecting, setConnecting] = useState(false);
   const [store, setStore] = useState<OpenedStore | null>(null);
   const [session, setSession] = useState<ServerSession | null>(null);
+  const [sync, setSync] = useState<SyncEngine | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
 
@@ -127,8 +134,11 @@ function Boot({ openLocal, version, openSynced }: AstroAppProps) {
   const openRemote = async (s: ServerSession) => {
     setSession(s);
     // Con caché local + sincronización si la plataforma lo ofrece; si no, en línea.
-    if (openSynced) setStore(await openSynced(s));
-    else setStore({ db: createRemoteAdapter(s, deviceMeta), storage: { kind: 'remote', persistent: true } });
+    if (openCache) {
+      const synced = await openSyncedStore(s, openCache);
+      setSync(synced.engine);
+      setStore(synced.store);
+    } else setStore({ db: createRemoteAdapter(s, deviceMeta), storage: { kind: 'remote', persistent: true } });
   };
 
   const pending = useRef<ServerSession | null>(null);
@@ -148,10 +158,12 @@ function Boot({ openLocal, version, openSynced }: AstroAppProps) {
   const control: AppControl = {
     mode: mode ?? 'local',
     session,
+    sync,
     connect: () => setConnecting(true),
     disconnect: async () => {
       await session?.logout();
       setSession(null);
+      setSync(null);
       setStore(null);
       setMode('local');
     },
@@ -187,6 +199,7 @@ function Boot({ openLocal, version, openSynced }: AstroAppProps) {
   return (
     <AppControlContext.Provider value={control}>
       <DataProvider db={store.db} storage={store.storage}>
+        {sync && <SyncRunner engine={sync} />}
         <Gate version={version} />
       </DataProvider>
     </AppControlContext.Provider>
@@ -357,6 +370,7 @@ function Shell({ version }: { version?: string }) {
             <span className="h-1.5 w-1.5 rounded-full bg-current shadow-[0_0_8px_currentColor]" /> {control.mode === 'remote' ? t('nav.server') : 'Local'}
           </span>
           <p className="mt-1 truncate">{control.session ? new URL(control.session.state.url).host : t('settings.localMode')}</p>
+          {control.sync && <SyncBadge engine={control.sync} />}
         </div>
       </aside>
       <main className="flex min-w-0 flex-1 flex-col pb-24 md:pb-0">{screen}</main>

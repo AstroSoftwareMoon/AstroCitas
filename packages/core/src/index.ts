@@ -10,3 +10,5 @@ export * from './reminders';
 export * from './crypto';
 export * from './requestPage';
 export * from './remote';
+export * from './sync';
+export * from './ics';

@@ -241,6 +241,51 @@ CREATE INDEX IF NOT EXISTS outbox_appointment ON outbox_messages(appointment_id,
 CREATE INDEX IF NOT EXISTS outbox_status ON outbox_messages(status, created_at);
 `,
   },
+  {
+    version: 3,
+    name: 'sincronización: relojes por campo, cola de salida, registro del servidor y conflictos',
+    sql: /* sql */ `
+CREATE TABLE IF NOT EXISTS sync_clocks (
+  entity TEXT NOT NULL,
+  row_id TEXT NOT NULL,
+  field TEXT NOT NULL,
+  hlc TEXT NOT NULL,
+  PRIMARY KEY (entity, row_id, field)
+);
+CREATE TABLE IF NOT EXISTS sync_conflicts (
+  id TEXT PRIMARY KEY,
+  entity TEXT NOT NULL,
+  row_id TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  detail TEXT NOT NULL DEFAULT '{}',
+  created_at INTEGER NOT NULL,
+  resolved_at INTEGER
+);
+`,
+    // Cola local (cliente) y registro incremental (servidor) con secuencia autoincremental.
+    sqlite: /* sql */ `
+CREATE TABLE IF NOT EXISTS sync_outbox (
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  entity TEXT NOT NULL, row_id TEXT NOT NULL, field TEXT NOT NULL, value TEXT, hlc TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sync_log (
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  entity TEXT NOT NULL, row_id TEXT NOT NULL, field TEXT NOT NULL, value TEXT, hlc TEXT NOT NULL,
+  device TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL
+);
+`,
+    postgres: /* sql */ `
+CREATE TABLE IF NOT EXISTS sync_outbox (
+  seq BIGSERIAL PRIMARY KEY,
+  entity TEXT NOT NULL, row_id TEXT NOT NULL, field TEXT NOT NULL, value TEXT, hlc TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sync_log (
+  seq BIGSERIAL PRIMARY KEY,
+  entity TEXT NOT NULL, row_id TEXT NOT NULL, field TEXT NOT NULL, value TEXT, hlc TEXT NOT NULL,
+  device TEXT NOT NULL DEFAULT '', created_at BIGINT NOT NULL
+);
+`,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

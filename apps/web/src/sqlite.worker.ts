@@ -11,25 +11,39 @@ type Req = { id: number; op: 'exec' | 'run' | 'all'; sql: string; params?: unkno
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let db: any;
 let storage: 'opfs' | 'memory' = 'memory';
+let ready: Promise<'opfs' | 'memory'> | null = null;
 
-const ready = (async () => {
-  const sqlite3 = await sqlite3InitModule();
-  try {
-    const pool = await sqlite3.installOpfsSAHPoolVfs({ name: 'astrocitas' });
-    db = new pool.OpfsSAHPoolDb('/astrocitas.sqlite3');
-    storage = 'opfs';
-  } catch (e) {
-    console.warn('[astrocitas] OPFS no disponible, usando memoria:', e);
-    db = new sqlite3.oo1.DB(':memory:', 'c');
-  }
-  db.exec('PRAGMA journal_mode = TRUNCATE; PRAGMA foreign_keys = ON;');
-  return storage;
-})();
+/** Cada archivo usa su propio pool OPFS (bloqueo exclusivo): local y cachés de servidor pueden convivir. */
+function open(name: string) {
+  return (ready ??= (async () => {
+    const sqlite3 = await sqlite3InitModule();
+    // Al recargar, el worker anterior puede tardar un instante en soltar el bloqueo exclusivo de OPFS:
+    // se reintenta unos segundos antes de recurrir a memoria (que no guardaría nada).
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 12 && !db; attempt++) {
+      try {
+        const pool = await sqlite3.installOpfsSAHPoolVfs({ name: name === 'astrocitas' ? 'astrocitas' : `astrocitas-${name}` });
+        db = new pool.OpfsSAHPoolDb(`/${name}.sqlite3`);
+        storage = 'opfs';
+      } catch (e) {
+        lastError = e;
+        if (typeof navigator !== 'undefined' && !('storage' in navigator && 'getDirectory' in navigator.storage)) break;
+        await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+      }
+    }
+    if (!db) {
+      console.warn('[astrocitas] OPFS no disponible, usando memoria:', lastError);
+      db = new sqlite3.oo1.DB(':memory:', 'c');
+    }
+    db.exec('PRAGMA journal_mode = TRUNCATE; PRAGMA foreign_keys = ON;');
+    return storage;
+  })());
+}
 
-self.onmessage = async (ev: MessageEvent<Req | { id: number; op: 'init' }>) => {
+self.onmessage = async (ev: MessageEvent<Req | { id: number; op: 'init'; sql: string }>) => {
   const msg = ev.data;
   try {
-    const kind = await ready;
+    const kind = await open(msg.op === 'init' ? msg.sql || 'astrocitas' : 'astrocitas');
     let result: unknown;
     if (msg.op === 'init') result = { storage: kind };
     else if (msg.op === 'exec') {

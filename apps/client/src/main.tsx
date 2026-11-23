@@ -15,7 +15,7 @@ async function openLocal(password?: string): Promise<OpenedStore> {
 document.documentElement.classList.add('dark');
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AstroApp openLocal={openLocal} version={__APP_VERSION__} platform={tauriPlatform} />
+    <AstroApp openLocal={openLocal} openCache={(name) => openNativeSqlite(undefined, name)} version={__APP_VERSION__} platform={tauriPlatform} />
   </StrictMode>,
 );
 

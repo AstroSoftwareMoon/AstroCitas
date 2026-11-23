@@ -184,3 +184,13 @@ export function createRemoteAdapter(session: ServerSession, meta: { get(k: strin
   a.setMeta = async (k: string, v: unknown) => meta.set(k, v);
   return a as unknown as DataAdapter;
 }
+
+/** Transporte de sincronización sobre la API del servidor propio. */
+export function httpSyncTransport(session: ServerSession): import('./sync').SyncTransport {
+  const base = () => `/api/v1/b/${session.businessId}/sync`;
+  return {
+    push: (device, changes) => session.request('POST', `${base()}/push`, { device, changes }),
+    pull: (device, since) => session.request('GET', `${base()}/pull?since=${since}&device=${encodeURIComponent(device)}`),
+    snapshot: () => session.request('GET', `${base()}/snapshot`),
+  };
+}

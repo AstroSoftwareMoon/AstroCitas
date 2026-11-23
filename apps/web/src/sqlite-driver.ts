@@ -1,7 +1,7 @@
 import type { Row, SqlDriver, SqlValue } from '@astrocitas/core/sql';
 
 /** Cliente del worker SQLite: implementa SqlDriver con mensajes asíncronos. */
-export async function openWebSqlite(): Promise<{ driver: SqlDriver; storage: 'opfs' | 'memory' }> {
+export async function openWebSqlite(name = 'astrocitas'): Promise<{ driver: SqlDriver; storage: 'opfs' | 'memory' }> {
   const worker = new Worker(new URL('./sqlite.worker.ts', import.meta.url), { type: 'module' });
   let seq = 0;
   const pending = new Map<number, { resolve(v: unknown): void; reject(e: Error): void }>();
@@ -20,7 +20,7 @@ export async function openWebSqlite(): Promise<{ driver: SqlDriver; storage: 'op
       worker.postMessage({ id, op, sql, params });
     });
 
-  const { storage } = await call<{ storage: 'opfs' | 'memory' }>('init');
+  const { storage } = await call<{ storage: 'opfs' | 'memory' }>('init', name);
   const driver: SqlDriver = {
     exec: (sql) => call<void>('exec', sql),
     run: (sql, params = []) => call<{ changes: number }>('run', sql, params),

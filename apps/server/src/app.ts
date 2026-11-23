@@ -1,5 +1,5 @@
 import type { FastifyBaseLogger, FastifyReply, FastifyRequest } from 'fastify';
-import { ConflictError, ValidationError } from '@astrocitas/core';
+import { ConflictError, ValidationError, type Hlc } from '@astrocitas/core';
 import type { Config } from './config';
 import type { Store } from './store';
 import { SystemRepo, type Membership } from './system';
@@ -18,6 +18,7 @@ export interface App {
   sys: SystemRepo;
   log: FastifyBaseLogger;
   hooks: AppHooks;
+  hlc: Hlc;
 }
 
 export class HttpError extends Error {

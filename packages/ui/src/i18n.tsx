@@ -367,6 +367,17 @@ const es = {
   'srv.disable': "Desactivar",
   'srv.businesses': "Negocios",
   'srv.ownerEmail': "Email del propietario (opcional)",
+  'sync.syncing': "Sincronizando…",
+  'sync.offline': "Sin conexión · {n} pendientes",
+  'sync.error': "Error al sincronizar",
+  'sync.pending': "{n} cambios por enviar",
+  'sync.ok': "Sincronizado",
+  'sync.conflicts': "Cambios que no se pudieron sincronizar",
+  'sync.conflictsDesc': "El servidor tenía una versión distinta y se ha mantenido la suya. Revisa estos casos:",
+  'sync.reason.overlap': "Ese hueco ya estaba ocupado en el servidor",
+  'sync.reason.forbidden': "Tu rol no permite ese cambio",
+  'sync.reason.validation': "Datos no válidos",
+  'sync.dismiss': "Entendido",
 } as const;
 
 export type TKey = keyof typeof es;
@@ -738,6 +749,17 @@ const en: Record<TKey, string> = {
   'srv.disable': "Disable",
   'srv.businesses': "Businesses",
   'srv.ownerEmail': "Owner email (optional)",
+  'sync.syncing': "Syncing…",
+  'sync.offline': "Offline · {n} pending",
+  'sync.error': "Sync error",
+  'sync.pending': "{n} changes to send",
+  'sync.ok': "Synced",
+  'sync.conflicts': "Changes that could not be synced",
+  'sync.conflictsDesc': "The server had a different version and it was kept. Review these cases:",
+  'sync.reason.overlap': "That slot was already taken on the server",
+  'sync.reason.forbidden': "Your role does not allow that change",
+  'sync.reason.validation': "Invalid data",
+  'sync.dismiss': "Got it",
 };
 
 const dicts = { es, en } as const;

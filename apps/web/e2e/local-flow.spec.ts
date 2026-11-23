@@ -16,9 +16,10 @@ test('modo local: onboarding, crear cita en 3 toques, persistencia y anti doble 
 
   // Ir al próximo lunes para tener jornada laborable
   const next = page.getByRole('button', { name: 'Siguiente' });
+  // Siempre un lunes futuro (si hoy es lunes, el de la semana que viene: las 10:00 podrían haber pasado).
   for (let i = 0; i < 7; i++) {
-    if (/^lun/i.test((await page.getByTestId('cal-title').textContent()) ?? '')) break;
     await next.click();
+    if (/^lun/i.test((await page.getByTestId('cal-title').textContent()) ?? '')) break;
   }
   await expect(page.getByTestId('cal-title')).toContainText(/^lun/i);
 

@@ -30,6 +30,8 @@ import { Button, Field, Input, PageHeader, Segmented, Select, Switch } from '../
 import { useToast } from '../components/toast';
 import { LogoMark } from '../components/Logo';
 import { useAppControl } from '../App';
+import { useSyncStatus } from '../lib/sync';
+import type { ConflictRecord, SyncEngine } from '@astrocitas/core';
 
 export function SettingsScreen({ version }: { version?: string }) {
   const { t, lang, setLang } = useI18n();
@@ -410,6 +412,7 @@ function ModeSection() {
       {control.mode === 'remote' && control.session ? (
         <>
           <p className="text-sm">{t('connect.connectedTo', { url: control.session.state.url })}</p>
+          {control.sync && <SyncConflicts engine={control.sync} />}
           <Button className="mt-3" variant="ghost" onClick={() => control.disconnect()}>
             {t('connect.disconnect')}
           </Button>
@@ -425,5 +428,33 @@ function ModeSection() {
         </>
       )}
     </Section>
+  );
+}
+
+function SyncConflicts({ engine }: { engine: SyncEngine }) {
+  const { t, lang } = useI18n();
+  const status = useSyncStatus(engine);
+  const [list, setList] = useState<ConflictRecord[]>([]);
+  useEffect(() => {
+    engine.conflicts().then(setList);
+  }, [engine, status?.conflicts]);
+  if (!list.length) return null;
+  return (
+    <div className="mt-4 rounded-3xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm" data-testid="sync-conflicts">
+      <h3 className="font-semibold text-amber-100">{t('sync.conflicts')}</h3>
+      <p className="mb-2 text-amber-100/80">{t('sync.conflictsDesc')}</p>
+      <ul className="space-y-2">
+        {list.map((c) => (
+          <li key={c.id} className="flex items-center gap-3">
+            <span className="flex-1">
+              {t(`sync.reason.${c.reason}` as TKey)} · <span className="text-white/60">{new Date(c.createdAt).toLocaleString(lang)}</span>
+            </span>
+            <Button size="sm" onClick={() => engine.dismissConflict(c.id)}>
+              {t('sync.dismiss')}
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

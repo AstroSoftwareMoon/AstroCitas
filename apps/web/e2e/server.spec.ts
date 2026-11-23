@@ -43,6 +43,7 @@ test.beforeAll(async () => {
 test.afterAll(() => srv?.kill());
 
 test('local → conectar a mi servidor → crear admin → migrar datos → panel del servidor', async ({ page }) => {
+  test.setTimeout(150_000);
   // 1) Modo local con datos de ejemplo
   await page.goto(BASE);
   await page.getByTestId('mode-local').click();
@@ -85,4 +86,23 @@ test('local → conectar a mi servidor → crear admin → migrar datos → pane
     await fetch(`${BASE}/api/v1/b/${bid}/rpc`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${login.accessToken}` }, body: JSON.stringify({ method: 'listClients', args: [] }) })
   ).json();
   expect(res.result.length).toBeGreaterThan(10);
+
+  // 6) Offline-first: sin red se sigue trabajando y se sincroniza al volver
+  if (test.info().project.name === 'desktop') {
+    await page.context().setOffline(true);
+    await page.getByRole('link', { name: 'Clientes' }).click();
+    await page.getByRole('button', { name: 'Nuevo cliente' }).first().click();
+    await page.getByLabel('Nombre').fill('Cliente sin conexión');
+    await page.getByRole('button', { name: 'Guardar' }).click();
+    await expect(page.getByTestId('sync-badge')).toContainText(/[1-9]\d* (pendientes|cambios por enviar)/, { timeout: 30_000 });
+    await page.context().setOffline(false);
+    await expect(async () => {
+      await page.getByTestId('sync-badge').click();
+      await expect(page.getByTestId('sync-badge')).toContainText('Sincronizado', { timeout: 3000 });
+    }).toPass({ timeout: 40_000 });
+    const after = await (
+      await fetch(`${BASE}/api/v1/b/${bid}/rpc`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${login.accessToken}` }, body: JSON.stringify({ method: 'listClients', args: [{ search: 'sin conexión' }] }) })
+    ).json();
+    expect(after.result).toHaveLength(1);
+  }
 });

@@ -27,8 +27,8 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
-            let path = app.path().app_data_dir()?.join("astrocitas.db");
-            app.manage(db::Db { path, conn: Mutex::new(None) });
+            let dir = app.path().app_data_dir()?;
+            app.manage(db::Db { path: Mutex::new(dir.join("astrocitas.db")), dir, conn: Mutex::new(None) });
             #[cfg(desktop)]
             tray::setup(app)?;
             Ok(())

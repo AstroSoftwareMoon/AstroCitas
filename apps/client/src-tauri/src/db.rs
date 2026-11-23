@@ -6,7 +6,9 @@ use serde_json::{Map, Value as Json};
 use std::{path::PathBuf, sync::Mutex};
 
 pub struct Db {
-    pub path: PathBuf,
+    /// Carpeta de datos de la app; el archivo activo depende del modo (local o caché de un servidor).
+    pub dir: PathBuf,
+    pub path: Mutex<PathBuf>,
     pub conn: Mutex<Option<Connection>>,
 }
 
@@ -36,11 +38,13 @@ fn quote(key: &str) -> String {
 }
 
 impl Db {
+    pub fn file(&self) -> PathBuf {
+        self.path.lock().unwrap().clone()
+    }
+
     pub fn open(&self, key: Option<String>) -> Result<(), String> {
-        if let Some(dir) = self.path.parent() {
-            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-        }
-        let conn = Connection::open(&self.path).map_err(|e| e.to_string())?;
+        std::fs::create_dir_all(&self.dir).map_err(|e| e.to_string())?;
+        let conn = Connection::open(self.file()).map_err(|e| e.to_string())?;
         if let Some(k) = key.as_deref().filter(|k| !k.is_empty()) {
             conn.execute_batch(&format!("PRAGMA key = {};", quote(k))).map_err(|e| e.to_string())?;
         }
@@ -62,7 +66,14 @@ impl Db {
 }
 
 #[tauri::command]
-pub fn db_open(db: tauri::State<Db>, key: Option<String>) -> Result<(), String> {
+pub fn db_open(db: tauri::State<Db>, key: Option<String>, name: Option<String>) -> Result<(), String> {
+    let file = match name.as_deref() {
+        Some(n) if n.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') && !n.is_empty() => format!("{n}.db"),
+        Some(_) => return Err("Nombre de base de datos no válido".into()),
+        None => "astrocitas.db".into(),
+    };
+    *db.conn.lock().unwrap() = None;
+    *db.path.lock().unwrap() = db.dir.join(file);
     db.open(key)
 }
 
@@ -102,7 +113,7 @@ pub fn db_all(db: tauri::State<Db>, sql: String, params: Vec<Json>) -> Result<Ve
 #[tauri::command]
 pub fn db_is_encrypted(db: tauri::State<Db>) -> Result<bool, String> {
     // Un SQLite sin cifrar empieza por la cabecera "SQLite format 3".
-    let head = std::fs::read(&db.path).map(|b| b.get(..15).map(|h| h.to_vec())).map_err(|e| e.to_string())?;
+    let head = std::fs::read(db.file()).map(|b| b.get(..15).map(|h| h.to_vec())).map_err(|e| e.to_string())?;
     Ok(head.as_deref() != Some(b"SQLite format 3"))
 }
 
@@ -116,7 +127,8 @@ fn file_is_plain(path: &std::path::Path) -> bool {
 #[tauri::command]
 pub fn db_rekey(db: tauri::State<Db>, new_key: Option<String>) -> Result<(), String> {
     let new_key = new_key.filter(|k| !k.is_empty());
-    let plain = file_is_plain(&db.path);
+    let path = db.file();
+    let plain = file_is_plain(&path);
     if !plain {
         if let Some(k) = &new_key {
             return db.with(|c| c.execute_batch(&format!("PRAGMA rekey = {};", quote(k))).map_err(|e| e.to_string()));
@@ -124,7 +136,7 @@ pub fn db_rekey(db: tauri::State<Db>, new_key: Option<String>) -> Result<(), Str
     } else if new_key.is_none() {
         return Ok(());
     }
-    let tmp = db.path.with_extension("db.rekey");
+    let tmp = path.with_extension("db.rekey");
     let _ = std::fs::remove_file(&tmp);
     db.with(|c| {
         c.execute_batch(&format!(
@@ -137,8 +149,8 @@ pub fn db_rekey(db: tauri::State<Db>, new_key: Option<String>) -> Result<(), Str
     // Cerrar, reemplazar el archivo (y los WAL) y reabrir con la nueva clave.
     *db.conn.lock().unwrap() = None;
     for ext in ["db-wal", "db-shm"] {
-        let _ = std::fs::remove_file(db.path.with_extension(ext));
+        let _ = std::fs::remove_file(path.with_extension(ext));
     }
-    std::fs::rename(&tmp, &db.path).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
     db.open(new_key)
 }

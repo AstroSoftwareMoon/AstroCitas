@@ -20,6 +20,24 @@ import { entityToParams, rowToEntity, TABLES, upsertSql } from './tables';
 export interface SqlAdapterOptions {
   now?: () => number;
   newId?: () => string;
+  /**
+   * Registro de cambios por campo (sincronización). Se ejecuta en la MISMA transacción que la escritura,
+   * con el driver de esa transacción. No se llama para cambios aplicados desde otro dispositivo (applyRow).
+   */
+  onChange?: ChangeHook;
+}
+
+export type ChangeHook = (entity: EntityName, id: string, fields: Record<string, unknown>, tx: SqlDriver) => Promise<void>;
+
+/** Campos que cambian entre dos versiones de una fila (sin el id). */
+export function diffFields(entity: EntityName, before: Record<string, unknown> | null, after: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const c of TABLES[entity].cols) {
+    if (c.field === 'id') continue;
+    const a = after[c.field] ?? null;
+    if (!before || JSON.stringify(before[c.field] ?? null) !== JSON.stringify(a)) out[c.field] = a;
+  }
+  return out;
 }
 
 const SCHEMAS: Record<EntityName, z.ZodType> = {
@@ -55,11 +73,24 @@ export class SqlAdapter implements DataAdapter {
   readonly db: SerialDb;
   private now: () => number;
   private newId: () => string;
+  private hook?: ChangeHook;
+  private untrackedDepth = 0;
+
+  /** Ejecuta escrituras sin registrarlas como cambios locales (instantáneas de sincronización). */
+  async untracked<T>(fn: () => Promise<T>): Promise<T> {
+    this.untrackedDepth++;
+    try {
+      return await fn();
+    } finally {
+      this.untrackedDepth--;
+    }
+  }
 
   private constructor(driver: SqlDriver, opts: SqlAdapterOptions) {
     this.db = new SerialDb(driver);
     this.now = opts.now ?? Date.now;
     this.newId = opts.newId ?? (() => crypto.randomUUID());
+    this.hook = opts.onChange;
   }
 
   static async open(driver: SqlDriver, opts: SqlAdapterOptions = {}): Promise<SqlAdapter> {
@@ -103,11 +134,21 @@ export class SqlAdapter implements DataAdapter {
     return parseOrThrow<T>(SCHEMAS[entity], merged);
   }
 
-  private async write(entity: EntityName, value: Record<string, unknown>, tx?: SqlDriver) {
+  private async write(entity: EntityName, value: Record<string, unknown>, tx?: SqlDriver, opts: { track?: boolean } = {}) {
     const sql = upsertSql(entity);
     const params = entityToParams(entity, value);
+    const track = !!this.hook && opts.track !== false && this.untrackedDepth === 0;
+    const run = async (d: SqlDriver) => {
+      const before = track ? ((await d.all(`SELECT * FROM ${TABLES[entity].table} WHERE id = ?`, [value.id as string]))[0] ?? null) : null;
+      await d.run(sql, params);
+      if (track) {
+        const fields = diffFields(entity, before ? rowToEntity<Record<string, unknown>>(entity, before) : null, value);
+        if (Object.keys(fields).length) await this.hook!(entity, value.id as string, fields, d);
+      }
+    };
     try {
-      if (tx) await tx.run(sql, params);
+      if (tx) await run(tx);
+      else if (track) await this.db.transaction(run);
       else await this.db.run(sql, params);
     } catch (e) {
       if (String((e as Error)?.message ?? e).includes('ASTRO_OVERLAP')) {
@@ -115,6 +156,19 @@ export class SqlAdapter implements DataAdapter {
       }
       throw e;
     }
+  }
+
+  /** Lee una fila aunque esté borrada (para sincronización). */
+  async getRow(entity: EntityName, id: string, tx?: SqlDriver): Promise<Record<string, unknown> | null> {
+    const sql = `SELECT * FROM ${TABLES[entity].table} WHERE id = ?`;
+    const rows = tx ? await tx.all(sql, [id]) : await this.db.all(sql, [id]);
+    return rows[0] ? rowToEntity<Record<string, unknown>>(entity, rows[0]) : null;
+  }
+
+  /** Aplica una fila llegada de otro dispositivo: valida, escribe y NO la vuelve a registrar como cambio local. */
+  async applyRow(entity: EntityName, row: Record<string, unknown>, tx?: SqlDriver): Promise<void> {
+    const value = parseOrThrow<Record<string, unknown>>(SCHEMAS[entity], row);
+    await this.write(entity, value, tx, { track: false });
   }
 
   private async save<T extends { id: string }>(entity: EntityName, input: Record<string, unknown>): Promise<T> {
@@ -365,22 +419,16 @@ export class SqlAdapter implements DataAdapter {
   // ---------- borrado / deshacer ----------
 
   async remove(entity: EntityName, id: string): Promise<void> {
+    const row = await this.getRow(entity, id);
+    if (!row || row.deletedAt) return;
     const now = this.now();
-    await this.db.run(`UPDATE ${TABLES[entity].table} SET deleted_at = ?, updated_at = ? WHERE id = ?`, [now, now, id]);
+    await this.write(entity, { ...row, deletedAt: now, updatedAt: now });
   }
 
   async restore(entity: EntityName, id: string): Promise<void> {
-    try {
-      await this.db.run(`UPDATE ${TABLES[entity].table} SET deleted_at = NULL, updated_at = ? WHERE id = ?`, [
-        this.now(),
-        id,
-      ]);
-    } catch (e) {
-      if (String((e as Error)?.message).includes('ASTRO_OVERLAP')) {
-        throw new ConflictError([{ kind: 'overlap', level: 'error' }]);
-      }
-      throw e;
-    }
+    const row = await this.getRow(entity, id);
+    if (!row || !row.deletedAt) return;
+    await this.write(entity, { ...row, deletedAt: null, updatedAt: this.now() });
   }
 
   // ---------- exportar / importar ----------

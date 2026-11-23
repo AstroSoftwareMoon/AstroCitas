@@ -4,6 +4,8 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import type { PgLikeClient } from '@astrocitas/core/sql';
+import { Hlc, serverLogHook } from '@astrocitas/core';
+import { syncRoutes } from './routes/sync';
 import type { Config } from './config';
 import { openStore } from './store';
 import { SystemRepo } from './system';
@@ -31,8 +33,10 @@ export async function buildServer(cfg: Config, opts: { pgFactory?: () => Promise
     trustProxy: cfg.trustProxy,
     bodyLimit: 25 * 1024 * 1024,
   });
-  const store = await openStore(cfg, { pgFactory: opts.pgFactory });
-  const app: App = { cfg, store, sys: new SystemRepo(store.system), log: fastify.log, hooks: { dataChanged: [] } };
+  // Todo cambio en un negocio (RPC, reserva pública, cola…) queda en su registro de sincronización.
+  const hlc = new Hlc('server');
+  const store = await openStore(cfg, { pgFactory: opts.pgFactory, businessOptions: { onChange: serverLogHook(hlc) } });
+  const app: App = { cfg, store, sys: new SystemRepo(store.system), log: fastify.log, hooks: { dataChanged: [] }, hlc };
 
   fastify.setErrorHandler(errorHandler);
   await fastify.register(cors, {
@@ -51,6 +55,7 @@ export async function buildServer(cfg: Config, opts: { pgFactory?: () => Promise
   authRoutes(fastify, app);
   dataRoutes(fastify, app);
   adminRoutes(fastify, app);
+  syncRoutes(fastify, app);
   for (const p of opts.plugins ?? []) await p.register(fastify, app);
 
   // La PWA se sirve desde el propio servidor (misma interfaz que la app instalada).
