@@ -262,7 +262,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Generar proyecto Android
         working-directory: apps/client
-        run: pnpm tauri android init --ci
+        run: |
+          pnpm tauri android init --ci
+          # El proyecto generado trae el icono por defecto de Tauri: lo sustituimos por el de AstroCitas
+          res=src-tauri/gen/android/app/src/main/res
+          rm -f $res/mipmap-*/ic_launcher*
+          cp -r src-tauri/icons/android/. $res/
+          ls -R $res | grep -E 'mipmap|ic_launcher' | head -40
       - name: Compilar
         working-directory: apps/client
         run: pnpm tauri android build --apk --aab --target aarch64 --target armv7 --target x86_64

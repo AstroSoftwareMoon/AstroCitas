@@ -1,6 +1,6 @@
 [package]
 name = "astrocitas"
-version = "0.1.0"
+version = "0.1.1"
 description = "AstroCitas — agenda de citas local-first"
 authors = ["AstroCitas contributors"]
 license = "AGPL-3.0-or-later"
