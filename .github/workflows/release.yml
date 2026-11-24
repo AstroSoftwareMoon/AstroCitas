@@ -385,7 +385,7 @@ jobs:
           cat SHA256SUMS.txt
           gh release upload "$TAG" SHA256SUMS.txt --clobber
           if [ "${{ needs.desktop.result }}${{ needs.android.result }}${{ needs.web.result }}${{ needs.docker.result }}" = "successsuccesssuccesssuccess" ]; then
-            gh release edit "$TAG" --draft=false
+            gh release edit "$TAG" --draft=false --prerelease=false
             gh release edit "$TAG" --latest
           else
             echo "::warning::Algún artefacto falló; la release queda en borrador para revisarla."
