@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import QRCode from 'qrcode';
-import { CalendarClock, Copy, Database, Download, FileCode, HardDrive, History, Lock, Palette, QrCode, Server, Store, Trash2, Upload } from 'lucide-react';
+import { CalendarClock, Copy, Database, Download, FileCode, FileText, HardDrive, History, Lock, Palette, Printer, QrCode, Server, ShieldCheck, Star, Store, Trash2, Upload } from 'lucide-react';
 import {
   BusinessKind,
   decryptJson,
@@ -16,6 +16,8 @@ import {
   renderTemplate,
   requestLink,
   toCsv,
+  toIcs,
+  privacyPolicy,
   type BackupFile,
   type Business,
 } from '@astrocitas/core';
@@ -62,6 +64,7 @@ export function SettingsScreen({ version }: { version?: string }) {
     const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
     const content = backupPass ? await encryptJson(data, backupPass) : data;
     downloadFile(`astrocitas-${stamp}.astrocitas`, JSON.stringify(content), 'application/json');
+    await db.setMeta('backup.last', Date.now());
   }
 
   async function restoreText(text: string) {
@@ -123,6 +126,32 @@ export function SettingsScreen({ version }: { version?: string }) {
         'text/csv',
       );
     }
+  }
+
+  async function exportIcs() {
+    const now = Date.now();
+    const [appts, services, staff, clients] = await Promise.all([
+      db.listAppointments({ from: now - 30 * 86_400_000, to: now + 365 * 86_400_000 }),
+      db.listServices({ includeInactive: true }),
+      db.listStaff({ includeInactive: true }),
+      db.listClients({ limit: 100_000 }),
+    ]);
+    const svc = new Map(services.map((x) => [x.id, x.name]));
+    const stf = new Map(staff.map((x) => [x.id, x.name]));
+    const cli = new Map(clients.map((x) => [x.id, x.name]));
+    const ics = toIcs({
+      name: biz.name,
+      events: appts.map((a) => ({
+        uid: a.id,
+        start: a.startsAt,
+        end: a.endsAt,
+        updatedAt: a.updatedAt,
+        summary: [a.clientId ? cli.get(a.clientId) : null, svc.get(a.serviceId)].filter(Boolean).join(' · '),
+        description: [stf.get(a.staffId), a.notes].filter(Boolean).join('\n'),
+        location: biz.address,
+      })),
+    });
+    downloadFile('astrocitas.ics', ics, 'text/calendar');
   }
 
   async function wipe() {
@@ -240,6 +269,9 @@ export function SettingsScreen({ version }: { version?: string }) {
               <Button variant="ghost" icon={<Download size={16} />} onClick={() => exportCsv('appointments')}>
                 {t('settings.exportCsv')} · {t('nav.calendar')}
               </Button>
+              <Button variant="ghost" icon={<CalendarClock size={16} />} onClick={exportIcs}>
+                {t('settings.ics')}
+              </Button>
             </div>
             <div className="mt-4 border-t border-white/[0.07] pt-4">
               <Button variant="ghost" icon={<Trash2 size={16} />} className="text-red-300" onClick={wipe}>
@@ -247,6 +279,10 @@ export function SettingsScreen({ version }: { version?: string }) {
               </Button>
             </div>
           </Section>
+
+          <LoyaltySection />
+
+          <LegalSection />
 
           <DbPassword />
 
@@ -329,7 +365,10 @@ function RequestMode({ business }: { business: Business }) {
             </Button>
             <Button
               icon={<Copy size={16} />}
-              onClick={() => navigator.clipboard?.writeText(link).then(() => toast.show(t('settings.copied')), () => undefined)}
+              onClick={() => {
+                localStorage.setItem('astrocitas.shared', '1');
+                navigator.clipboard?.writeText(link).then(() => toast.show(t('settings.copied')), () => undefined);
+              }}
             >
               {t('settings.copyLink')}
             </Button>
@@ -456,5 +495,77 @@ function SyncConflicts({ engine }: { engine: SyncEngine }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+function LoyaltySection() {
+  const { t } = useI18n();
+  const biz = useBiz();
+  const db = useDb();
+  const toast = useToast();
+  const invalidate = useInvalidate();
+  const [f, setF] = useState({ every: biz.settings.loyaltyEvery ?? 0, reward: biz.settings.loyaltyReward ?? '', reviewUrl: biz.settings.reviewUrl ?? '' });
+  return (
+    <Section icon={<Star size={18} />} title={t('settings.loyalty')}>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label={t('loyalty.every')}>
+          <Input type="number" min={0} max={100} value={f.every} onChange={(e) => setF({ ...f, every: Number(e.target.value) })} />
+        </Field>
+        <Field label={t('loyalty.reward')} className="sm:col-span-2">
+          <Input value={f.reward} onChange={(e) => setF({ ...f, reward: e.target.value })} placeholder={t('loyalty.rewardPh')} />
+        </Field>
+        <Field label={t('settings.reviewUrl')} className="sm:col-span-3">
+          <Input type="url" value={f.reviewUrl} onChange={(e) => setF({ ...f, reviewUrl: e.target.value })} placeholder="https://g.page/r/…" />
+        </Field>
+      </div>
+      <div className="mt-3 flex justify-end">
+        <Button
+          variant="primary"
+          onClick={async () => {
+            await db.saveBusiness({ ...biz, settings: { ...biz.settings, loyaltyEvery: f.every, loyaltyReward: f.reward, reviewUrl: f.reviewUrl } });
+            await invalidate();
+            toast.show(t('common.saved'));
+          }}
+        >
+          {t('common.save')}
+        </Button>
+      </div>
+    </Section>
+  );
+}
+
+function LegalSection() {
+  const { t } = useI18n();
+  const biz = useBiz();
+  const control = useAppControl();
+  const tpl = defaultTemplates(biz.locale).find((x) => x.kind === 'request')!;
+  const link = control.session ? null : requestLink(biz, renderTemplate(tpl.body, { negocio: biz.name, servicio: '…', cliente: '…' }));
+  async function poster() {
+    const url = link ?? '';
+    const svg = url ? await QRCode.toString(url, { type: 'svg', margin: 1 }) : '';
+    const w = window.open('', '_blank');
+    if (!w) return;
+    const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(biz.name)}</title><style>
+      body{font-family:system-ui,sans-serif;text-align:center;padding:48px;color:#000}h1{font-size:44px;margin:0 0 8px}p{font-size:22px;margin:0 0 32px}
+      .qr{width:340px;margin:0 auto}.qr svg{width:100%;height:auto}small{display:block;margin-top:24px;color:#555;font-size:14px}</style></head>
+      <body><h1>${esc(biz.name)}</h1><p>${biz.locale === 'en' ? 'Scan to book an appointment' : 'Escanea para pedir cita'}</p><div class="qr">${svg}</div>
+      <small>${esc(biz.phone)} ${esc(biz.address)}</small><script>setTimeout(()=>print(),300)</script></body></html>`);
+    w.document.close();
+  }
+  return (
+    <Section icon={<ShieldCheck size={18} />} title={t('settings.legal')}>
+      <p className="mb-3 text-sm text-ink-muted">{t('settings.legalDesc')}</p>
+      <div className="flex flex-wrap gap-2">
+        <Button icon={<FileText size={16} />} onClick={() => downloadFile('politica-de-privacidad.md', privacyPolicy(biz, { selfHosted: control.mode === 'remote' }), 'text/markdown')}>
+          {t('settings.privacy')}
+        </Button>
+        {link && (
+          <Button icon={<Printer size={16} />} onClick={poster}>
+            {t('settings.poster')}
+          </Button>
+        )}
+      </div>
+    </Section>
   );
 }

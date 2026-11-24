@@ -74,7 +74,7 @@ export function publicRoutes(f: FastifyInstance, app: App, deps: PublicDeps) {
     const inner = `<div id="app" data-slug="${esc(req.params.slug)}" data-reschedule="${esc(req.query.r ?? '')}" data-captcha="${app.cfg.captcha ? '1' : '0'}"><p class="muted">${esc(business.name)}</p><h1>${business.locale === 'en' ? 'Book an appointment' : 'Reserva tu cita'}</h1><noscript>Activa JavaScript para reservar.</noscript></div>`;
     return reply
       .type('text/html')
-      .header('Content-Security-Policy', "default-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors *; base-uri 'none'")
+      .header('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors *; base-uri 'none'")
       .send(page(business.name, inner, { scripts: ['/public/booking.js'], lang: business.locale, embed: req.query.embed === '1' }));
   });
 

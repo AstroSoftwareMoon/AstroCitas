@@ -286,6 +286,11 @@ CREATE TABLE IF NOT EXISTS sync_log (
 );
 `,
   },
+  {
+    version: 4,
+    name: 'tarjeta de fidelidad',
+    sql: /* sql */ `ALTER TABLE clients ADD COLUMN loyalty_redeemed INTEGER NOT NULL DEFAULT 0;`,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

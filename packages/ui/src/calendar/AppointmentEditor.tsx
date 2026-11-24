@@ -19,7 +19,10 @@ import {
   type AppointmentStatus,
   type Conflict,
   type RecurrenceRule,
+  toIcs,
 } from '@astrocitas/core';
+import { navigate } from '../lib/router';
+import { downloadFile } from '../lib/util';
 import { useI18n, type TKey } from '../i18n';
 import { useBiz, useClient, useClients, useDb, useInvalidate, useServices, useStaff } from '../lib/data';
 import { cx } from '../lib/util';
@@ -171,10 +174,26 @@ export function AppointmentEditor({ state, onClose, onDuplicate }: { state: Edit
       toast.show(next === 'cancelled' ? t('appt.cancelled') : t('common.saved'), {
         action: { label: t('common.undo'), onClick: () => db.saveAppointment(before, { force: true }).then(invalidate, toast.error) },
       });
+      if (next === 'cancelled') {
+        // ¿Alguien espera este servicio ese día? Se ofrece avisarle.
+        const d = toLocalDate(existing.startsAt, tz);
+        const waiting = (await db.listWaitlist()).filter((w) => w.serviceId === existing.serviceId && w.fromDate <= d && w.toDate >= d);
+        if (waiting.length)
+          setTimeout(() => toast.show(t('wait.freed', { n: waiting.length }), { action: { label: t('wait.notify'), onClick: () => navigate('/messages?tab=waitlist') }, duration: 9000 }), 400);
+      }
       onClose();
     } catch (e) {
       setError(errorMessage(e, t));
     }
+  }
+
+  function downloadIcs() {
+    if (!existing) return;
+    const ics = toIcs({
+      name: biz.name,
+      events: [{ uid: existing.id, start: existing.startsAt, end: existing.endsAt, summary: `${service?.name ?? ''} · ${biz.name}`, location: biz.address, description: selectedClient?.name ?? '' }],
+    });
+    downloadFile('cita.ics', ics, 'text/calendar');
   }
 
   async function remove() {
@@ -377,6 +396,12 @@ export function AppointmentEditor({ state, onClose, onDuplicate }: { state: Edit
             <h3 className="label">{t('msg.sendReminder')}</h3>
             <SendButtons client={selectedClient} appointment={existing} kind="reminder" />
           </section>
+        )}
+
+        {existing && (
+          <button type="button" onClick={downloadIcs} className="text-sm text-white/70 underline-offset-2 hover:text-white hover:underline">
+            {t('appt.ics')}
+          </button>
         )}
 
         {/* Más opciones */}

@@ -21,6 +21,7 @@ export async function openWebSqlite(name = 'astrocitas'): Promise<{ driver: SqlD
     });
 
   const { storage } = await call<{ storage: 'opfs' | 'memory' }>('init', name);
+  console.info(`[astrocitas] base «${name}» abierta en ${storage}`);
   const driver: SqlDriver = {
     exec: (sql) => call<void>('exec', sql),
     run: (sql, params = []) => call<{ changes: number }>('run', sql, params),

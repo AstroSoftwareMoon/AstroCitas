@@ -263,9 +263,9 @@ el titular del copyright sí puede publicarla, y el proyecto acepta contribucion
 | Fase | Contenido | Estado |
 |---|---|---|
 | 1 | core + SQLite local + calendario + servicios, profesionales y clientes | ✅ |
-| 2 | Recordatorios locales, plantillas, envío 1-toque WhatsApp/SMS/email, SMTP propio, copias cifradas | ⏳ |
-| 3 | Empaquetado Tauri 2 y CI de releases (escritorio + Android, iOS preparado, updater) | ⏳ |
-| 4 | Servidor Fastify + Docker + Caddy + panel admin + "Conectar a mi servidor" | ⏳ |
-| 5 | Sincronización y migración local ↔ servidor | ⏳ |
-| 6 | Recordatorios automáticos con cola, reserva pública y widget | ⏳ |
-| 7 | Informes, fidelidad, QR, .ics, pulido | ⏳ |
+| 2 | Recordatorios locales, plantillas, envío 1-toque WhatsApp/SMS/email, SMTP propio, copias cifradas | ✅ |
+| 3 | Empaquetado Tauri 2 y CI de releases (escritorio + Android, iOS preparado, updater) | ✅ |
+| 4 | Servidor Fastify + Docker + Caddy + panel admin + "Conectar a mi servidor" | ✅ |
+| 5 | Sincronización y migración local ↔ servidor | ✅ |
+| 6 | Recordatorios automáticos con cola, reserva pública y widget | ✅ |
+| 7 | Informes, fidelidad, QR, .ics, pulido | ✅ |

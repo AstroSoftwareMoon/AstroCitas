@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, CalendarPlus, Cake, Download, FileUp, Plus, Search, Trash2, Users } from 'lucide-react';
-import { formatDate, formatMoney, isBirthday, parseCsv, toLocalDate, todayLocal, type Client } from '@astrocitas/core';
+import { ArrowLeft, ShieldOff, Star, CalendarPlus, Cake, Download, FileUp, Plus, Search, Trash2, Users } from 'lucide-react';
+import { formatDate, formatMoney, isBirthday, loyaltyStamps, parseCsv, toLocalDate, todayLocal, type Client } from '@astrocitas/core';
 import { useI18n, type TKey } from '../i18n';
 import { useBiz, useClient, useClients, useDb, useInvalidate, useServices, useStaff } from '../lib/data';
 import { navigate } from '../lib/router';
@@ -26,10 +26,10 @@ export function ClientsScreen({ selectedId }: { selectedId?: string }) {
   }, []);
 
   async function importCsv() {
-    const file = await pickFile('.csv,text/csv');
+    const file = await pickFile('.csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     if (!file) return;
     try {
-      const rows = parseCsv(await file.text());
+      const rows = /\.xlsx$/i.test(file.name) ? await readXlsx(file) : parseCsv(await file.text());
       const get = (r: Record<string, string>, ...keys: string[]) => {
         for (const k of Object.keys(r)) if (keys.includes(k.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, ''))) return r[k]!;
         return '';
@@ -191,6 +191,23 @@ function ClientDetail({ id }: { id: string | null }) {
     toast.show(t('common.deleted'), { action: { label: t('common.undo'), onClick: () => db.restore('clients', client.id).then(invalidate) } });
   }
 
+  /** Derecho de supresión (RGPD): se anonimiza la ficha y se conservan las citas sin datos personales. */
+  async function erase() {
+    if (!client || !window.confirm(t('clients.eraseConfirm', { name: client.name }))) return;
+    await db.saveClient({ ...client, name: t('clients.erased'), phone: '', email: '', notes: '', birthday: null, tags: [], consentReminders: false, consentMarketing: false });
+    await db.remove('clients', client.id);
+    await invalidate();
+    navigate('/clients');
+    toast.show(t('clients.erased'));
+  }
+
+  async function redeem() {
+    if (!client) return;
+    await db.saveClient({ ...client, loyaltyRedeemed: (client.loyaltyRedeemed ?? 0) + 1 });
+    await invalidate();
+    toast.show(t('loyalty.redeemed'));
+  }
+
   function gdprExport() {
     if (!client) return;
     downloadFile(`cliente-${client.name.replace(/\W+/g, '_')}.json`, JSON.stringify({ client, appointments: history }, null, 2));
@@ -224,6 +241,16 @@ function ClientDetail({ id }: { id: string | null }) {
           <Stat label={t('clients.noShows')} value={String(stats.noShows)} tone={stats.noShows > 0 ? 'warn' : undefined} />
           <Stat label={t('clients.next')} value={stats.nextVisitAt ? formatDate(stats.nextVisitAt, biz.timezone, lang, 'd LLL HH:mm') : '—'} />
         </div>
+      )}
+
+      {client && (biz.settings.loyaltyEvery ?? 0) > 0 && (
+        <LoyaltyCard
+          completed={history.filter((a) => a.status === 'completed').length}
+          redeemed={client.loyaltyRedeemed ?? 0}
+          every={biz.settings.loyaltyEvery}
+          reward={biz.settings.loyaltyReward ?? ''}
+          onRedeem={redeem}
+        />
       )}
 
       <div className="card space-y-4 p-4 sm:p-5">
@@ -260,6 +287,9 @@ function ClientDetail({ id }: { id: string | null }) {
             <>
               <Button variant="ghost" size="sm" icon={<Download size={16} />} onClick={gdprExport} className="mr-auto">
                 {t('clients.gdprExport')}
+              </Button>
+              <Button variant="ghost" size="sm" icon={<ShieldOff size={16} />} onClick={erase} className="text-red-300">
+                {t('clients.erase')}
               </Button>
               <Button variant="ghost" size="sm" icon={<Trash2 size={16} />} onClick={remove} className="text-red-300">
                 {t('common.delete')}
@@ -318,4 +348,51 @@ const STATUS_COLORS: Record<string, string> = {
 export function StatusBadge({ status }: { status: string }) {
   const { t } = useI18n();
   return <Badge color={STATUS_COLORS[status]}>{t(`status.${status}` as TKey)}</Badge>;
+}
+
+/** Lee un .xlsx (primera hoja) como filas con cabecera, igual que el CSV. */
+async function readXlsx(file: File): Promise<Record<string, string>[]> {
+  const { default: readXlsxFile } = await import('read-excel-file');
+  const rows = (await readXlsxFile(file)) as unknown[][];
+  const [head, ...body] = rows;
+  if (!head) return [];
+  const keys = head.map((h) => String(h ?? '').trim());
+  return body.map((r) =>
+    Object.fromEntries(
+      keys.map((k, i) => {
+        const v = r[i];
+        return [k, v instanceof Date ? v.toISOString().slice(0, 10) : v == null ? '' : String(v).trim()];
+      }),
+    ),
+  );
+}
+
+function LoyaltyCard({ completed, redeemed, every, reward, onRedeem }: { completed: number; redeemed: number; every: number; reward: string; onRedeem(): void }) {
+  const { t } = useI18n();
+  const { stamps, rewardReady } = loyaltyStamps(completed, redeemed, every);
+  return (
+    <section className="glass mb-5 rounded-3xl p-4" data-testid="loyalty">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="font-semibold">{t('loyalty.title')}</h3>
+        <span className="text-sm tabular-nums text-ink-muted">
+          {stamps}/{every}
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {Array.from({ length: every }, (_, i) => (
+          <span key={i} className={cx('inline-flex h-8 w-8 items-center justify-center rounded-full', i < stamps ? 'bg-white text-black' : 'bg-white/[0.07] text-white/30')}>
+            <Star size={15} fill={i < stamps ? 'currentColor' : 'none'} />
+          </span>
+        ))}
+      </div>
+      {rewardReady && (
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-emerald-500/15 p-3 text-sm text-emerald-100">
+          <span>{t('loyalty.ready', { r: reward })}</span>
+          <Button size="sm" variant="primary" onClick={onRedeem}>
+            {t('loyalty.redeem')}
+          </Button>
+        </div>
+      )}
+    </section>
+  );
 }

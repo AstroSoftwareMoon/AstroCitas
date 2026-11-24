@@ -74,17 +74,6 @@ export class SqlAdapter implements DataAdapter {
   private now: () => number;
   private newId: () => string;
   private hook?: ChangeHook;
-  private untrackedDepth = 0;
-
-  /** Ejecuta escrituras sin registrarlas como cambios locales (instantáneas de sincronización). */
-  async untracked<T>(fn: () => Promise<T>): Promise<T> {
-    this.untrackedDepth++;
-    try {
-      return await fn();
-    } finally {
-      this.untrackedDepth--;
-    }
-  }
 
   private constructor(driver: SqlDriver, opts: SqlAdapterOptions) {
     this.db = new SerialDb(driver);
@@ -137,7 +126,7 @@ export class SqlAdapter implements DataAdapter {
   private async write(entity: EntityName, value: Record<string, unknown>, tx?: SqlDriver, opts: { track?: boolean } = {}) {
     const sql = upsertSql(entity);
     const params = entityToParams(entity, value);
-    const track = !!this.hook && opts.track !== false && this.untrackedDepth === 0;
+    const track = !!this.hook && opts.track !== false;
     const run = async (d: SqlDriver) => {
       const before = track ? ((await d.all(`SELECT * FROM ${TABLES[entity].table} WHERE id = ?`, [value.id as string]))[0] ?? null) : null;
       await d.run(sql, params);
@@ -448,7 +437,11 @@ export class SqlAdapter implements DataAdapter {
     };
   }
 
-  async importAll(file: BackupFile, opts: { mode: 'replace' | 'merge' } = { mode: 'replace' }): Promise<void> {
+  /**
+   * `track: false` = no registrar como cambios locales (instantánea de sincronización). Solo afecta a las
+   * escrituras de esta importación, nunca a lo que el usuario guarde a la vez.
+   */
+  async importAll(file: BackupFile, opts: { mode: 'replace' | 'merge'; track?: boolean } = { mode: 'replace' }): Promise<void> {
     if (!isBackupFile(file)) throw new Error('El archivo no es una copia de AstroCitas válida');
     if (file.version > BACKUP_VERSION) throw new Error('La copia es de una versión más nueva de AstroCitas');
     // Validar todo antes de tocar la base de datos.
@@ -469,7 +462,7 @@ export class SqlAdapter implements DataAdapter {
           ]);
           if (cur[0] && Number(cur[0].updated_at) >= (v.updatedAt as number)) continue;
         }
-        await this.write(e, v, tx);
+        await this.write(e, v, tx, { track: opts.track });
       }
     });
   }

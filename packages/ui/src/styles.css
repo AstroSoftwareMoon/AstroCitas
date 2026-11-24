@@ -124,3 +124,18 @@
   .press { transition: transform 260ms cubic-bezier(0.3, 1.6, 0.5, 1), background-color 150ms, color 150ms; }
   .press:active { transform: scale(0.96); }
 }
+
+/* Informes en PDF (Imprimir → Guardar como PDF): fondo blanco, sin navegación ni cristal. */
+@media print {
+  html, body { background: #fff !important; color: #000 !important; }
+  body::before { display: none; }
+  aside, nav, .print\:hidden { display: none !important; }
+  .card, .glass { background: #fff !important; border: 1px solid #ddd !important; box-shadow: none !important; backdrop-filter: none !important; color: #000 !important; }
+  .glass::before { display: none; }
+  .text-ink-muted { color: #555 !important; }
+  .report .bg-white\/85, .report .bg-white { background: #111 !important; }
+  .report .bg-white\/10 { background: #eee !important; }
+  main { padding: 0 !important; }
+  .overflow-y-auto { overflow: visible !important; }
+  .h-full { height: auto !important; }
+}

@@ -32,13 +32,13 @@ import { errorMessage } from '../lib/errors';
 import { Avatar, Badge, Button, EmptyState, Field, Input, PageHeader, Segmented, Select, Switch, Textarea } from '../components/ui';
 import { useToast } from '../components/toast';
 
-type Tab = 'pending' | 'templates' | 'auto' | 'history';
+type Tab = 'pending' | 'waitlist' | 'templates' | 'auto' | 'history';
 
 export function MessagesScreen() {
   const { t } = useI18n();
   const db = useDb();
   const biz = useBiz();
-  const [tab, setTab] = useState<Tab>('pending');
+  const [tab, setTab] = useState<Tab>(() => (window.location.hash.includes('tab=waitlist') ? 'waitlist' : 'pending'));
   useEffect(() => {
     ensureMessagingDefaults(db, biz.locale).catch(() => undefined);
   }, [db, biz.locale]);
@@ -51,6 +51,7 @@ export function MessagesScreen() {
           onChange={setTab}
           options={[
             { value: 'pending', label: t('msg.pending') },
+            { value: 'waitlist', label: t('msg.waitlist') },
             { value: 'templates', label: t('msg.templates') },
             { value: 'auto', label: t('msg.auto') },
             { value: 'history', label: t('msg.history') },
@@ -60,6 +61,7 @@ export function MessagesScreen() {
       <div className="flex-1 overflow-y-auto px-4 pb-6 sm:px-6">
         <div className="mx-auto max-w-3xl">
           {tab === 'pending' && <Pending />}
+          {tab === 'waitlist' && <Waitlist />}
           {tab === 'templates' && <Templates />}
           {tab === 'auto' && <Automatic />}
           {tab === 'history' && <History />}
@@ -473,3 +475,97 @@ function History() {
   );
 }
 
+
+function Waitlist() {
+  const { t, lang } = useI18n();
+  const db = useDb();
+  const biz = useBiz();
+  const toast = useToast();
+  const invalidate = useInvalidate();
+  const { data: list = [] } = useQuery({ queryKey: ['waitlist'], queryFn: () => db.listWaitlist() });
+  const { data: clients = [] } = useQuery({ queryKey: ['clients', '__all'], queryFn: () => db.listClients({ limit: 100_000 }) });
+  const { data: services = [] } = useServices();
+  const today = todayLocal(biz.timezone);
+  const [f, setF] = useState({ clientId: '', serviceId: '', from: today, to: addDays(today, 14), notes: '' });
+  const cMap = new Map(clients.map((c) => [c.id, c]));
+  async function add() {
+    try {
+      await db.saveWaitlist({ clientId: f.clientId, serviceId: f.serviceId || services[0]!.id, fromDate: f.from, toDate: f.to, notes: f.notes });
+      await invalidate();
+      setF({ ...f, clientId: '', notes: '' });
+      toast.show(t('common.saved'));
+    } catch (e) {
+      toast.error(errorMessage(e, t));
+    }
+  }
+  return (
+    <div className="space-y-4">
+      <div className="card grid gap-2 p-4 sm:grid-cols-6">
+        <Field label={t('appt.client')} className="sm:col-span-2">
+          <Select value={f.clientId} onChange={(e) => setF({ ...f, clientId: e.target.value })}>
+            <option value="">—</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label={t('appt.service')} className="sm:col-span-2">
+          <Select value={f.serviceId} onChange={(e) => setF({ ...f, serviceId: e.target.value })}>
+            {services.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label={t('wait.from')}>
+          <Input type="date" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} />
+        </Field>
+        <Field label={t('wait.to')}>
+          <Input type="date" value={f.to} min={f.from} onChange={(e) => setF({ ...f, to: e.target.value })} />
+        </Field>
+        <div className="flex justify-end sm:col-span-6">
+          <Button variant="primary" disabled={!f.clientId} onClick={add}>
+            {t('wait.add')}
+          </Button>
+        </div>
+      </div>
+      {list.length === 0 ? (
+        <EmptyState icon={<Bell size={26} />} title={t('wait.empty')} description={t('wait.emptyDesc')} />
+      ) : (
+        <ul className="space-y-2" data-testid="waitlist">
+          {list.map((w) => {
+            const c = cMap.get(w.clientId);
+            if (!c) return null;
+            return (
+              <li key={w.id} className="card flex flex-wrap items-center gap-3 p-3 pl-4">
+                <Avatar name={c.name} size={36} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium">{c.name}</div>
+                  <div className="truncate text-sm text-ink-muted">
+                    {services.find((s) => s.id === w.serviceId)?.name} · {formatLocalDateShort(w.fromDate, lang)} → {formatLocalDateShort(w.toDate, lang)}
+                  </div>
+                </div>
+                <SendButtons client={c} kind="waitlist" size="sm" />
+                <button
+                  type="button"
+                  className="press rounded-full px-2 py-1 text-xs text-ink-muted hover:bg-white/10"
+                  onClick={async () => {
+                    await db.saveWaitlist({ ...w, status: 'booked' });
+                    await invalidate();
+                  }}
+                >
+                  ✓
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+const formatLocalDateShort = (d: string, lang: string) => new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${d}T12:00:00Z`));

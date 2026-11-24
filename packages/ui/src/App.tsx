@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { CalendarDays, Cog, MessageCircle, Scissors, Server, Smartphone, Users, UserRound } from 'lucide-react';
+import { BarChart3, CalendarDays, Cog, MessageCircle, Scissors, Server, Smartphone, Users, UserRound } from 'lucide-react';
 import { createRemoteAdapter, ServerSession, type DataAdapter, type SyncEngine } from '@astrocitas/core';
 import type { SqlDriver } from '@astrocitas/core/sql';
 import { openSyncedStore, SyncRunner, SyncBadge } from './lib/sync';
@@ -21,6 +21,7 @@ import { ServicesScreen } from './screens/Services';
 import { StaffScreen } from './screens/Staff';
 import { SettingsScreen } from './screens/Settings';
 import { MessagesScreen } from './screens/Messages';
+import { ReportsScreen } from './screens/Reports';
 
 export interface OpenedStore {
   db: DataAdapter;
@@ -126,6 +127,7 @@ function Boot({ openLocal, version, openCache }: AstroAppProps) {
       (e) => {
         const msg = String(e?.message ?? e);
         if (msg.includes('ASTRO_LOCKED')) setLocked(true);
+        else if (msg.includes('ASTRO_DB_BUSY')) setError('AstroCitas ya está abierto en otra pestaña o ventana. Ciérrala y recarga esta página.');
         else setError(msg);
         if (password) throw e;
       },
@@ -305,6 +307,7 @@ const NAV: { path: string; key: TKey; icon: typeof CalendarDays }[] = [
   { path: '/calendar', key: 'nav.calendar', icon: CalendarDays },
   { path: '/clients', key: 'nav.clients', icon: Users },
   { path: '/messages', key: 'nav.messages', icon: MessageCircle },
+  { path: '/reports', key: 'nav.reports', icon: BarChart3 },
   { path: '/services', key: 'nav.services', icon: Scissors },
   { path: '/staff', key: 'nav.staff', icon: UserRound },
   { path: '/settings', key: 'nav.settings', icon: Cog },
@@ -326,6 +329,9 @@ function Shell({ version }: { version?: string }) {
       break;
     case '/server':
       screen = control.session ? <ServerScreen session={control.session} onLogout={() => control.disconnect()} /> : null;
+      break;
+    case '/reports':
+      screen = <ReportsScreen />;
       break;
     case '/messages':
       screen = <MessagesScreen />;

@@ -32,6 +32,10 @@ function open(name: string) {
       }
     }
     if (!db) {
+      const supported = typeof navigator !== 'undefined' && 'storage' in navigator && 'getDirectory' in navigator.storage;
+      // OPFS existe pero está ocupado (otra pestaña/ventana con AstroCitas abierto): mejor avisar que
+      // abrir una base vacía en memoria y que parezca que se han perdido los datos.
+      if (supported) throw new Error(`ASTRO_DB_BUSY: ${String((lastError as Error)?.message ?? lastError)}`);
       console.warn('[astrocitas] OPFS no disponible, usando memoria:', lastError);
       db = new sqlite3.oo1.DB(':memory:', 'c');
     }

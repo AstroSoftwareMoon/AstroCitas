@@ -45,6 +45,13 @@ export async function openSyncedStore(session: ServerSession, openCache: (name: 
     },
   });
   const engine = new SyncEngine(db, hlc, httpSyncTransport(session), id);
+  // Diagnóstico desde la consola: __astrocitas.engine.status, __astrocitas.engine.pendingCount()…
+  const history: string[] = [];
+  engine.onStatus((st) => {
+    history.push(`${new Date().toISOString().slice(11, 23)} ${st.state} p=${st.pending} ${st.error ?? ''}`);
+    if (history.length > 50) history.shift();
+  });
+  (globalThis as { __astrocitas?: unknown }).__astrocitas = { db, engine, cache: name, history };
   return { store: { db, storage: { kind: 'sync', persistent: true } }, engine };
 }
 
@@ -59,7 +66,8 @@ export function SyncRunner({ engine }: { engine: SyncEngine }) {
       timer = setTimeout(run, 800);
     };
     const off = engine.onStatus((s) => {
-      if (s.state === 'idle' && s.received) qc.invalidateQueries();
+      // Refrescar si llegaron datos, aunque la pasada terminara sin conexión a mitad.
+      if (s.state !== 'syncing' && s.received) qc.invalidateQueries();
     });
     run();
     const id = setInterval(run, 15_000);

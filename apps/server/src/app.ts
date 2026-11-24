@@ -1,4 +1,5 @@
 import type { FastifyBaseLogger, FastifyReply, FastifyRequest } from 'fastify';
+import { ZodError } from 'zod';
 import { ConflictError, ValidationError, type Hlc } from '@astrocitas/core';
 import type { Config } from './config';
 import type { Store } from './store';
@@ -60,6 +61,8 @@ export function requireAdmin(claims: AccessClaims) {
 
 /** Errores de dominio → respuestas HTTP claras y serializables (el cliente reconstruye ConflictError). */
 export function errorHandler(err: Error & { statusCode?: number; validation?: unknown }, req: FastifyRequest, reply: FastifyReply) {
+  if (err instanceof ZodError)
+    return reply.code(400).send({ error: 'validation', message: err.issues.map((i) => i.message).join(' · '), issues: err.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) });
   if (err instanceof ConflictError) return reply.code(409).send({ error: 'conflict', message: err.message, conflicts: err.conflicts });
   if (err instanceof ValidationError) return reply.code(400).send({ error: 'validation', message: err.message, issues: err.issues });
   if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: 'http', message: err.message, ...err.extra });

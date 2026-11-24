@@ -162,8 +162,10 @@ jobs:
           dpkg-deb --info "$deb"
           rpm -qip apps/client/src-tauri/target/release/bundle/rpm/*.rpm
           sudo apt-get install -y "./$deb"
+          bin=$(dpkg -L "$(dpkg-deb -f "$deb" Package)" | grep -E '^/usr/bin/' | head -1)
+          echo "Binario: $bin"
           # La app debe arrancar y seguir viva 15 s (timeout devuelve 124).
-          set +e; xvfb-run -a timeout 15 astrocitas; code=$?; set -e
+          set +e; xvfb-run -a timeout 15 "$bin"; code=$?; set -e
           test "$code" = 124 || { echo "La app terminó con código $code"; exit 1; }
           echo "✓ AstroCitas arranca en Linux"
       - name: Smoke test (Windows)

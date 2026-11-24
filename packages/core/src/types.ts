@@ -45,6 +45,11 @@ export const BusinessSettings = z.object({
   /** Antelación mínima para reservar (min). */
   minNotice: z.number().int().min(0).default(0),
   weekStartsOn: z.union([z.literal(1), z.literal(7)]).default(1),
+  /** Tarjeta de fidelidad: cada N visitas completadas, una recompensa (0 = desactivada). */
+  loyaltyEvery: z.number().int().min(0).max(100).default(0),
+  loyaltyReward: z.string().max(120).default(''),
+  /** Enlace para pedir reseñas (Google, etc.): variable {enlace} de la plantilla de reseña. */
+  reviewUrl: z.string().max(500).default(''),
 });
 export type BusinessSettings = z.infer<typeof BusinessSettings>;
 
@@ -121,6 +126,8 @@ export const Client = z.object({
   /** RGPD: consentimiento explícito. */
   consentReminders: z.boolean().default(true),
   consentMarketing: z.boolean().default(false),
+  /** Recompensas de fidelidad ya canjeadas. */
+  loyaltyRedeemed: z.number().int().min(0).default(0),
 });
 export type Client = z.infer<typeof Client>;
 

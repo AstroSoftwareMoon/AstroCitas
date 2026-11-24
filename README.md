@@ -11,9 +11,9 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img alt="Licencia AGPL-3.0" src="https://img.shields.io/badge/licencia-AGPL--3.0-black"></a>
-  <img alt="Estado" src="https://img.shields.io/badge/estado-fase%201%20(local)-7c3aed">
-  <img alt="Plataformas" src="https://img.shields.io/badge/plataformas-Web%20·%20Windows%20·%20macOS%20·%20Linux%20·%20Android-555">
+  <a href="../../releases/latest"><img alt="Última versión" src="https://img.shields.io/github/v/release/AstroSoftwareMoon/AstroCitas?color=000&label=descargar"></a>
+  <a href="LICENSE"><img alt="Licencia AGPL-3.0" src="https://img.shields.io/badge/licencia-AGPL--3.0-000"></a>
+  <img alt="Plataformas" src="https://img.shields.io/badge/Web%20·%20Windows%20·%20macOS%20·%20Linux%20·%20Android%20·%20Docker-111">
 </p>
 
 <p align="center">
@@ -24,18 +24,21 @@ Peluquerías, barberías, clínicas, fisios, centros de estética, talleres, aca
 agenda **bonita, rápida y usable sin formación**. No hay servicio en la nube del autor, ni planes, ni pagos,
 ni cuentas centrales. Funciona de dos formas con **el mismo código y la misma interfaz**:
 
-- **A) Local** — instalas y funciona al instante, sin cuenta, sin internet y sin servidor. Los datos viven en tu dispositivo.
-- **B) Autohospedado** — montas tu propio servidor con Docker y tus apps se conectan a él *(fase 4)*.
+- **A) Local**: instalas y funciona al instante, sin cuenta, sin internet y sin servidor. Los datos viven en tu dispositivo.
+- **B) Autohospedado**: montas tu propio servidor con Docker (un comando) y tus apps se conectan a él.
+  Sigue funcionando sin conexión y sincroniza solo.
 
 ## Capturas
 
 | Semana | Día por profesional |
 |---|---|
 | ![Vista semana](docs/screenshots/week.png) | ![Vista día](docs/screenshots/day.png) |
-| **Nueva cita en 3 toques** (servicio → hueco → cliente) | **Ficha de cliente** con historial y gasto |
+| **Nueva cita en 3 toques** (servicio → hueco → cliente) | **Ficha de cliente** con historial, gasto y fidelidad |
 | ![Nueva cita](docs/screenshots/new-appointment.png) | ![Clientes](docs/screenshots/clients.png) |
-| **Mes** | **Ajustes** |
-| ![Mes](docs/screenshots/month.png) | ![Ajustes](docs/screenshots/settings.png) |
+| **Informes** | **Recordatorios en 1 toque** |
+| ![Informes](docs/screenshots/reports.png) | ![Mensajes](docs/screenshots/messages.png) |
+| **Reserva online** (servidor propio) | **Ajustes** |
+| ![Reserva pública](docs/screenshots/booking.png) | ![Ajustes](docs/screenshots/settings.png) |
 
 <p align="center">
   <img src="docs/screenshots/mobile-day.png" alt="Móvil, vista día" width="240">
@@ -44,95 +47,125 @@ ni cuentas centrales. Funciona de dos formas con **el mismo código y la misma i
 
 ## Descargas
 
-> Los binarios se publican automáticamente en [GitHub Releases](../../releases) al crear un tag `v*`
-> (CI de releases: **fase 3**). Hasta entonces puedes usar la versión web o compilarla tú.
+Todas en **[GitHub Releases](../../releases/latest)**, con `SHA256SUMS.txt` para verificar la integridad.
 
-| Plataforma | Formato | Estado |
-|---|---|---|
-| 🌐 Web (PWA, instalable) | `astrocitas-web.zip` — cualquier hosting estático | ✅ disponible (compilar) |
-| 🪟 Windows | `.msi`, `.exe` (NSIS), portable | fase 3 |
-| 🍎 macOS | `.dmg` universal (Intel + Apple Silicon) | fase 3 |
-| 🐧 Linux | AppImage, `.deb`, `.rpm` | fase 3 |
-| 🤖 Android | `.apk` firmado, `.aab` | fase 3 |
-| 📱 iOS | proyecto preparado (requiere cuenta Apple Developer) | fase 3 |
-| 🐳 Servidor | `ghcr.io/…/astrocitas-server` (amd64/arm64) | fase 4 |
+| Plataforma | Archivo |
+|---|---|
+| 🪟 Windows | `AstroCitas_X.Y.Z_x64_es-ES.msi`, `…_x64-setup.exe` o `…_x64-portable.exe` (sin instalar) |
+| 🍎 macOS (Intel + Apple Silicon) | `AstroCitas_X.Y.Z_universal.dmg` |
+| 🐧 Linux | `.AppImage` (cualquier distro), `.deb` (Debian/Ubuntu), `.rpm` (Fedora/openSUSE) |
+| 🤖 Android | `AstroCitas_X.Y.Z_android-universal.apk` (instalación directa) · `.aab` (Play Store) |
+| 🌐 Web (PWA) | `astrocitas-web-X.Y.Z.zip`: súbelo a cualquier hosting estático; instalable desde el navegador |
+| 🐳 Servidor | `docker pull ghcr.io/astrosoftwaremoon/astrocitas-server:latest` (amd64 / arm64) |
+| 📱 iOS | Proyecto y workflow preparados; requiere cuenta de Apple Developer ([docs/IOS.md](docs/IOS.md)) |
 
-Cada release incluye `SHA256SUMS` y firmas para verificar la integridad.
+La app de escritorio se **autoactualiza** con actualizaciones firmadas.
 
 ## Instalación
 
 ### Modo A · Local (sin nada)
 
-1. Abre la app (web o escritorio) y elige **«En este dispositivo»**.
-2. Escribe el nombre de tu negocio, elige el tipo y quién atiende. Opcional: datos de ejemplo.
-3. Listo. Sin registro, sin internet.
+1. Abre la app (escritorio, Android o web) y elige **«En este dispositivo»**.
+2. Escribe el nombre del negocio, el tipo y quién atiende. Si quieres, carga datos de ejemplo.
+3. Listo. Sin registro y sin internet.
 
-Tus datos se guardan en una base SQLite dentro del dispositivo (en la web, en el almacenamiento privado
-del navegador, OPFS). Haz copias en **Ajustes → Tus datos → Descargar copia (.astrocitas)**.
+Los datos se guardan en SQLite en el propio dispositivo:
 
-### Modo B · Autohospedado *(fase 4)*
+- **En escritorio y Android**, con cifrado opcional por contraseña (SQLCipher).
+- **En la web**, en el almacenamiento privado del navegador (OPFS).
+
+Haz copias en **Ajustes → Tus datos**: archivo `.astrocitas`, opcionalmente cifrado. Además se hace una copia automática diaria.
+
+### Modo B · Autohospedado
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<org>/astrocitas/main/install.sh | sh   # o:
-docker compose up -d                                                                     # app + Caddy (HTTPS)
+curl -fsSL https://raw.githubusercontent.com/AstroSoftwareMoon/AstroCitas/main/deploy/install.sh | sh
 ```
 
-Después, en la app: **Conectar a mi servidor** → URL + usuario, y el asistente migra tus datos locales.
-Guías para VPS, Raspberry Pi y NAS en `docs/` (fase 4).
+Instala Docker si hace falta y arranca AstroCitas con **Caddy** (HTTPS automático). Después, en la app: **Conectar a mi servidor** → URL + usuario. El asistente comprueba la versión y te ofrece subir tus datos locales.
+Guía completa para **VPS, Raspberry Pi y NAS**, PostgreSQL/Redis opcionales, WhatsApp y copias: **[docs/SELFHOSTING.md](docs/SELFHOSTING.md)**.
 
-## Qué hay ya (fase 1)
+## Funcionalidades
 
-- ✅ Onboarding en 1 minuto con servicios sugeridos por tipo de negocio y datos de ejemplo opcionales.
-- ✅ Calendario **día / semana / mes**, colores por profesional o servicio, **arrastrar y soltar** y
-  redimensionar (ratón y táctil con pulsación larga), línea de hora actual, horario y ausencias sombreados.
-- ✅ Citas en 3 toques con **huecos libres calculados** (duración + buffers, solapes, ausencias, festivos,
-  zona horaria `Europe/Madrid` y cambios de hora), reprogramar, cancelar, no-show, cobrar, duplicar,
-  **recurrentes** (semanal, quincenal, mensual) y **deshacer**.
-- ✅ **Prevención de dobles reservas**: validación en `core` + *triggers* SQLite que lo impiden en el motor.
-- ✅ Servicios (duración, precio, buffers antes/después, color, categoría).
-- ✅ Profesionales con horario semanal en tramos, servicios asignados, vacaciones, festivos y bloqueos.
-- ✅ Clientes: ficha, notas, etiquetas, cumpleaños, consentimientos RGPD, historial, total gastado,
-  no-shows, exportar sus datos (RGPD), importar clientes desde CSV (exportable desde Excel).
-- ✅ Copia completa `.astrocitas` (JSON) y restauración, exportación CSV de clientes y citas.
-- ✅ Interfaz negra con **Liquid Glass** (barra lateral y dock flotantes, diálogos de cristal; opción «Reducir transparencia»), fuente Outfit incluida, ES/EN, atajos de teclado (`N`, `T`, `D`/`W`/`M`, `←`/`→`, `/`, `?`), PWA instalable.
-- ✅ Cero telemetría.
+**Agenda**
+- Vistas día, semana y mes. Colores por profesional o servicio. **Arrastrar y soltar** y redimensionar (en táctil, con pulsación larga). Atajos de teclado (`N`, `T`, `D`/`W`/`M`, `←`/`→`, `/`, `?`).
+- Citas en 3 toques con **huecos calculados**:
+  - duración y buffers antes/después;
+  - solapes, horarios por tramos, vacaciones, festivos y bloqueos;
+  - zona horaria `Europe/Madrid` y cambios de hora.
+- Reprogramar, cancelar, no-show, cobrar, duplicar, **recurrentes**, **deshacer**. Lista de espera que avisa al liberarse un hueco.
+- **Sin dobles reservas:** validación en `core`, *triggers* en SQLite/PostgreSQL y transacciones serializadas en el servidor (probado con reservas simultáneas).
 
-Hoja de ruta completa y diseño: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+**Clientes**
+- Ficha con notas, etiquetas, cumpleaños, historial, total gastado y no-shows.
+- **Tarjeta de fidelidad**.
+- Importación desde CSV o Excel.
+- RGPD: consentimientos, exportar sus datos y **derecho de supresión** (anonimiza la ficha y conserva las citas).
+
+**Recordatorios**
+- **Modo local:**
+  - lista diaria de pendientes con **WhatsApp / SMS / email en un toque**;
+  - avisos al dueño (próximas citas, resumen del día, cumpleaños);
+  - **email automático con tu propio SMTP** (escritorio y Android), mientras la app está abierta o en la bandeja.
+- **Servidor propio:**
+  - reglas (24 h y 2 h antes, confirmación al reservar, agradecimiento, reseña) enviadas 24/7 con **tus** credenciales (SMTP/Resend, WhatsApp Cloud API, Twilio);
+  - botones **Confirmo / Cancelar / Cambiar** que actualizan la cita;
+  - cola con reintentos, idempotencia y estado de entrega;
+  - si la cita cambia, el recordatorio se reprograma solo.
+- Plantillas editables con variables (`{cliente}`, `{servicio}`, `{fecha}`, `{hora}`, `{enlace}`…) y vista previa.
+
+**Reservas**
+- **Local:** QR / enlace en «modo solicitud», donde el cliente te escribe por WhatsApp o email. También una página de reserva exportable (`.html`) y un cartel con QR para imprimir.
+- **Servidor propio:** reserva online con huecos en tiempo real en `/b/tu-negocio`, **widget** para tu web, CAPTCHA autoalojado (ALTCHA) y cambio de cita desde el enlace del recordatorio.
+
+**Informes y extras**
+- Citas, ingresos, ticket medio, **ocupación real**, no-shows, clientes nuevos, servicios top, por profesional, por método de cobro y por origen.
+- Exportación CSV y PDF.
+- Exportar **.ics** y **calendario suscribible** por enlace privado (Google, Apple, Outlook).
+- Plantilla de política de privacidad.
+
+**Servidor**
+- Usuarios con roles (propietario, recepción, profesional), 2FA (TOTP), argon2id, sesiones con refresh rotatorio.
+- Auditoría, límites de peticiones, varios negocios por servidor.
+- Copias programadas y aviso de nuevas versiones.
+- SQLite o PostgreSQL; cola en base de datos o BullMQ + Redis.
+
+**Diseño:** negro con **Liquid Glass**, fuente Outfit, ES/EN, accesible (AA), opción «Reducir transparencia». **Cero telemetría**.
+
+Arquitectura, esquema de base de datos y decisiones: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 ## Desarrollo
 
-Requisitos: Node ≥ 22.13 y pnpm 10.
+Requisitos: Node ≥ 22.13 y pnpm 10. Para la app nativa: Rust y las [dependencias de Tauri](https://v2.tauri.app/start/prerequisites/).
 
 ```bash
 pnpm install
-pnpm dev          # PWA en http://localhost:5173
-pnpm test         # tests unitarios (core)
-pnpm typecheck
-pnpm build        # compila core, ui y la PWA (apps/web/dist)
-pnpm e2e          # Playwright: flujo completo en escritorio y móvil
+pnpm dev                                   # PWA en http://localhost:5173
+pnpm --filter @astrocitas/server dev       # servidor en http://localhost:8080
+pnpm --filter @astrocitas/client tauri dev # app de escritorio
+pnpm test        # unitarios (core) + integración de la API (SQLite y PostgreSQL)
+pnpm e2e         # Playwright: flujos local, recordatorios, servidor, sincronización y reserva
+pnpm build
 ```
 
-Estructura:
-
 ```
-packages/core   lógica pura compartida (huecos, validación, SQL, migraciones)  ← local y servidor
-packages/ui     interfaz React + Tailwind                                       ← Tauri y PWA
+packages/core   lógica pura compartida: huecos, validación, SQL, migraciones, sync, recordatorios, informes
+packages/ui     interfaz React + Tailwind (la usan la app Tauri y la PWA)
 apps/web        PWA + SQLite WASM/OPFS
-apps/client     Tauri 2 (fase 3)
-apps/server     Fastify + Docker (fase 4)
+apps/client     Tauri 2 (Windows, macOS, Linux, Android; iOS preparado) + SQLCipher + SMTP
+apps/server     Fastify + Zod, cola, reserva pública, Docker
+deploy/         docker-compose + Caddy + install.sh
 ```
+
+Publicar versiones: [docs/RELEASES.md](docs/RELEASES.md).
 
 ## Privacidad
 
-En modo local los datos **nunca** salen del dispositivo. AstroCitas no incluye analítica, telemetría ni
-llamadas a servicios de terceros. Los mensajes a clientes se envían desde *tus* apps (WhatsApp, SMS,
-email) o con *tus* credenciales en tu servidor.
+En modo local los datos **nunca** salen del dispositivo. AstroCitas no incluye analítica, telemetría ni CDNs: la fuente y todo lo demás van dentro de la app. Los mensajes a clientes salen desde tus apps (WhatsApp, SMS, email) o desde tu servidor, con tus credenciales.
 
 ## Licencia
 
-[AGPL-3.0-or-later](LICENSE). Libre para usar, modificar y autohospedar, también con fines comerciales.
-Si ofreces una versión modificada como servicio en red, debes publicar tus cambios: así nadie puede
-convertir AstroCitas en un SaaS cerrado. Justificación completa en
+[AGPL-3.0-or-later](LICENSE). Libre para usar, modificar y autohospedar, también con fines comerciales. Si ofreces una versión modificada como servicio en red, debes publicar tus cambios: así nadie puede convertir AstroCitas en un SaaS cerrado. Justificación completa en
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#8-licencia-agpl-30-or-later-justificación).
 
 Logo: planeta con órbita y luna, monocromo. Archivos en [`assets/brand/`](assets/brand).

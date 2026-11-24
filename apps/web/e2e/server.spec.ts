@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
  * Modo B (autohospedado) contra el servidor real empaquetado (apps/server/dist), que además sirve la PWA.
  * Requiere: pnpm --filter @astrocitas/server build && pnpm --filter @astrocitas/web build
  */
-const PORT = 8099 + (process.env.TEST_PARALLEL_INDEX ? Number(process.env.TEST_PARALLEL_INDEX) : 0);
+// Puerto aleatorio: varias ejecuciones simultáneas no comparten servidor.
+const PORT = 20000 + Math.floor(Math.random() * 20000);
 let srv: ChildProcess;
 const BASE = `http://localhost:${PORT}`;
 
@@ -89,6 +90,8 @@ test('local → conectar a mi servidor → crear admin → migrar datos → pane
 
   // 6) Offline-first: sin red se sigue trabajando y se sincroniza al volver
   if (test.info().project.name === 'desktop') {
+      // Primero, que termine la sincronización inicial (como haría cualquiera antes de quedarse sin red).
+    await expect(page.getByTestId('sync-badge')).toContainText('Sincronizado', { timeout: 30_000 });
     await page.context().setOffline(true);
     await page.getByRole('link', { name: 'Clientes' }).click();
     await page.getByRole('button', { name: 'Nuevo cliente' }).first().click();
@@ -105,4 +108,44 @@ test('local → conectar a mi servidor → crear admin → migrar datos → pane
     ).json();
     expect(after.result).toHaveLength(1);
   }
+});
+
+test('reserva pública (con CAPTCHA) y widget embebible', async ({ page }) => {
+  test.setTimeout(120_000);
+  const login = await (
+    await fetch(`${BASE}/api/v1/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'admin@vega.es', password: 'contraseña-segura-123' }) })
+  ).json();
+  const bid = login.memberships[0].businessId;
+  const auth = { 'Content-Type': 'application/json', Authorization: `Bearer ${login.accessToken}` };
+  const pub = await (await fetch(`${BASE}/api/v1/b/${bid}/public`, { headers: auth })).json();
+
+  // Página de reserva
+  await page.goto(pub.bookingUrl);
+  await expect(page.getByRole('heading', { name: 'Reserva tu cita' })).toBeVisible();
+  await page.locator('.opt').first().click();
+  await page.locator('.day:not([disabled])').first().click();
+  await page.locator('.chip:not([disabled])').last().click();
+  await page.getByLabel('Nombre y apellidos').fill('Paciente Online');
+  await page.getByLabel('Teléfono').fill('611 000 111');
+  await page.locator('#k').check();
+  await page.getByRole('button', { name: 'Reservar cita' }).click();
+  await expect(page.getByTestId('booked')).toContainText('¡Cita reservada!', { timeout: 60_000 });
+
+  // La cita está en el servidor, marcada como online
+  const appts = await (
+    await fetch(`${BASE}/api/v1/b/${bid}/rpc`, { method: 'POST', headers: auth, body: JSON.stringify({ method: 'listAppointments', args: [{ from: Date.now(), to: Date.now() + 60 * 86_400_000 }] }) })
+  ).json();
+  expect(appts.result.some((a: { source: string }) => a.source === 'online')).toBe(true);
+
+  // Widget en una web cualquiera
+  // Web del negocio simulada. Se sirve en el mismo origen porque Chrome (Local Network Access) bloquea en
+  // tests que otro origen cargue recursos de localhost; en producción el servidor tiene dominio público.
+  const site = `${BASE}/mi-web-de-prueba`;
+  await page.route(site, (r) =>
+    r.fulfill({ contentType: 'text/html', body: `<!doctype html><html><body><h1>Mi web</h1><script src="${BASE}/widget.js" data-astrocitas="${pub.slug}"></script></body></html>` }),
+  );
+  await page.goto(site);
+  await page.getByRole('button', { name: 'Reservar cita' }).click();
+  const frame = page.frameLocator('iframe.astro-fr');
+  await expect(frame.getByRole('heading', { name: 'Reserva tu cita' })).toBeVisible();
 });

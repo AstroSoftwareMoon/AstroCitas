@@ -73,6 +73,7 @@ export const TABLES: Record<EntityName, { table: string; cols: Col[] }> = {
       c('tags', 'json'),
       c('consentReminders', 'bool'),
       c('consentMarketing', 'bool'),
+      c('loyaltyRedeemed', 'int'),
     ],
   },
   timeOff: {

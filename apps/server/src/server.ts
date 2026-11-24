@@ -32,6 +32,8 @@ export async function buildServer(cfg: Config, opts: { pgFactory?: () => Promise
     logger: opts.logger === false ? false : { level: cfg.logLevel, redact: ['req.headers.authorization', 'req.body.password', 'req.body.refreshToken'] },
     trustProxy: cfg.trustProxy,
     bodyLimit: 25 * 1024 * 1024,
+    // Los enlaces firmados (Confirmo/Cancelar/Cambiar) van en la ruta.
+    maxParamLength: 1000,
   });
   // Todo cambio en un negocio (RPC, reserva pública, cola…) queda en su registro de sincronización.
   const hlc = new Hlc('server');

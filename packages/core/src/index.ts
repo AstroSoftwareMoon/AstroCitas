@@ -12,3 +12,5 @@ export * from './requestPage';
 export * from './remote';
 export * from './sync';
 export * from './ics';
+export * from './reports';
+export * from './legal';

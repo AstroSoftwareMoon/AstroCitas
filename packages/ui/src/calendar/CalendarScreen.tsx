@@ -306,6 +306,8 @@ export function CalendarScreen({ params }: { params: URLSearchParams }) {
         </div>
       )}
 
+      <GettingStarted hasAppointments={appointments.length > 0} />
+
       {allStaff.length === 0 ? (
         <EmptyState icon={<UserRound size={28} />} title={t('cal.noStaff')} action={<Button variant="primary" onClick={() => navigate('/staff')}>{t('staff.new')}</Button>} />
       ) : view === 'month' ? (
@@ -387,6 +389,44 @@ export function CalendarScreen({ params }: { params: URLSearchParams }) {
           ))}
         </dl>
       </Modal>
+    </div>
+  );
+}
+
+function GettingStarted({ hasAppointments }: { hasAppointments: boolean }) {
+  const { t } = useI18n();
+  const db = useDb();
+  const [hidden, setHidden] = useState(() => readPref<string>('astrocitas.startHidden', '') === '1');
+  const { data: staff = [] } = useStaff();
+  const { data: services = [] } = useServices();
+  const { data: lastBackup } = useQuery({ queryKey: ['meta', 'backup.last'], queryFn: () => db.getMeta<number>('backup.last') });
+  if (hidden) return null;
+  const items: { key: TKey; done: boolean; href: string }[] = [
+    { key: 'start.hours', done: staff.some((s) => s.hours.length > 0), href: '#/staff' },
+    { key: 'start.services', done: services.length > 0, href: '#/services' },
+    { key: 'start.appt', done: hasAppointments, href: '#/calendar?new=1' },
+    { key: 'start.share', done: readPref<string>('astrocitas.shared', '') === '1', href: '#/settings' },
+    { key: 'start.backup', done: !!lastBackup, href: '#/settings' },
+  ];
+  if (items.every((i) => i.done)) return null;
+  return (
+    <div className="mx-3 mb-2 flex flex-wrap items-center gap-2 rounded-[22px] border border-white/[0.07] bg-white/[0.04] px-3 py-2 text-sm sm:mx-4" data-testid="getting-started">
+      <span className="font-semibold">{t('start.title')}</span>
+      {items.map((i) => (
+        <a key={i.key} href={i.href} className={cx('press inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs', i.done ? 'text-white/40 line-through' : 'bg-white/[0.08] text-white hover:bg-white/15')}>
+          {i.done ? '✓' : '○'} {t(i.key)}
+        </a>
+      ))}
+      <button
+        type="button"
+        className="ml-auto text-xs text-ink-muted hover:text-white"
+        onClick={() => {
+          writePref('astrocitas.startHidden', '1');
+          setHidden(true);
+        }}
+      >
+        {t('start.hide')}
+      </button>
     </div>
   );
 }

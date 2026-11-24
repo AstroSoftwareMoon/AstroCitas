@@ -90,7 +90,7 @@ export interface DataAdapter {
   restore(entity: EntityName, id: string): Promise<void>;
 
   exportAll(): Promise<BackupFile>;
-  importAll(file: BackupFile, opts?: { mode: 'replace' | 'merge' }): Promise<void>;
+  importAll(file: BackupFile, opts?: { mode: 'replace' | 'merge'; track?: boolean }): Promise<void>;
   /** Borra todos los datos (empezar de cero). */
   wipe(): Promise<void>;
 }

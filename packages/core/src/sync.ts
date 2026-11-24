@@ -319,12 +319,25 @@ export class SyncEngine {
     this.emit({ conflicts: (await this.conflicts()).length });
   }
 
-  /** Una pasada completa. Concurrente-seguro: si ya hay una en curso, espera a esa. */
+  private again = false;
+
+  /**
+   * Una pasada completa. Si llega otra petición mientras hay una en curso (p. ej. guardaste algo justo
+   * entonces), se encadena otra pasada al terminar: ningún cambio local espera al siguiente ciclo.
+   */
   sync(): Promise<void> {
-    if (!this.running)
-      this.running = this.run().finally(() => {
-        this.running = null;
-      });
+    if (this.running) {
+      this.again = true;
+      return this.running;
+    }
+    this.running = (async () => {
+      do {
+        this.again = false;
+        await this.run();
+      } while (this.again);
+    })().finally(() => {
+      this.running = null;
+    });
     return this.running;
   }
 
@@ -337,7 +350,7 @@ export class SyncEngine {
         const snap = await this.transport.snapshot();
         this.hlc.receive(snap.hlc);
         // Lo importado es el estado del servidor: ni se reenvía ni fija relojes locales.
-        await this.db.untracked(() => this.db.importAll(snap.dump, { mode: 'merge' }));
+        await this.db.importAll(snap.dump, { mode: 'merge', track: false });
         cursor = snap.cursor;
         received += 1;
         await this.db.setMeta('sync.cursor', cursor);
@@ -365,7 +378,7 @@ export class SyncEngine {
       this.emit({ state: 'idle', pending: await this.pendingCount(), conflicts: (await this.conflicts()).length, lastSyncAt: Date.now(), received, error: undefined });
     } catch (e) {
       const offline = e instanceof TypeError || /fetch|network|Failed to fetch|NetworkError/i.test(String((e as Error)?.message));
-      this.emit({ state: offline ? 'offline' : 'error', pending: await this.pendingCount(), error: (e as Error)?.message });
+      this.emit({ state: offline ? 'offline' : 'error', pending: await this.pendingCount(), received, error: (e as Error)?.message });
     }
   }
 

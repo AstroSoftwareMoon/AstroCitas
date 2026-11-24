@@ -12,7 +12,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // Sin recargas automáticas: la nueva versión se aplica al siguiente arranque de la app
+      // (una recarga en mitad del uso perdería lo que se está escribiendo).
+      registerType: 'prompt',
       includeAssets: ['favicon.svg', 'icons/*.png'],
       manifest: {
         name: 'AstroCitas',
@@ -32,6 +34,8 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,wasm}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        skipWaiting: false,
+        clientsClaim: false,
       },
     }),
   ],

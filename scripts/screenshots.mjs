@@ -56,6 +56,14 @@ const browser = await chromium.launch({ args: ['--lang=es-ES'] });
   await page.locator('a[href^="#/clients/"]').nth(2).click();
   await page.waitForTimeout(500);
   await page.screenshot({ path: out('clients.png') });
+  await page.goto(`${BASE}/#/reports`);
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: out('reports.png') });
+  await page.goto(`${BASE}/#/messages`);
+  await page.getByRole('button', { name: 'Hoy' }).first().click().catch(() => undefined);
+  await page.getByRole('tab', { name: 'Hoy' }).click().catch(() => undefined);
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: out('messages.png') });
   await page.goto(`${BASE}/#/staff`);
   await page.getByRole('button', { name: /Marta/ }).click();
   await page.waitForTimeout(400);
@@ -82,6 +90,38 @@ for (const dark of [false]) {
     await page.screenshot({ path: out('mobile-new.png') });
   }
   await ctx.close();
+}
+
+// Reserva online contra el servidor real (apps/server/dist), con datos de ejemplo.
+{
+  const { spawn } = await import('node:child_process');
+  const { mkdtempSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const port = 8455;
+  const srv = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', 'apps/server/dist/server.mjs'], {
+    env: { ...process.env, ASTRO_SECRET: 'shots-secret-shots-secret-shots-1234', DATA_DIR: mkdtempSync(join(tmpdir(), 'astro-shots-')), PORT: String(port), UPDATE_CHECK: 'false', CAPTCHA: 'false', LOG_LEVEL: 'warn', WEB_DIR: 'apps/web/dist' },
+    stdio: 'inherit',
+  });
+  const S = `http://localhost:${port}`;
+  for (let i = 0; i < 40; i++) { try { if ((await fetch(`${S}/health`)).ok) break; } catch {} await new Promise((r) => setTimeout(r, 250)); }
+  const post = (path, body, tok) => fetch(S + path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: `Bearer ${tok}` } : {}) }, body: JSON.stringify(body) }).then((r) => r.json());
+  const s = await post('/api/v1/setup', { email: 'admin@luna.es', password: 'contraseña-segura-1', businessName: 'Estudio Luna', kind: 'peluqueria' });
+  const bid = s.memberships[0].businessId;
+  const rpc = (method, ...args) => post(`/api/v1/b/${bid}/rpc`, { method, args }, s.accessToken).then((r) => r.result);
+  const hours = []; for (let wd = 1; wd <= 6; wd++) { hours.push({ weekday: wd, start: 570, end: 840 }); if (wd < 6) hours.push({ weekday: wd, start: 990, end: 1230 }); }
+  await rpc('saveBusiness', { name: 'Estudio Luna', kind: 'peluqueria', address: 'C/ de la Luna 12, Madrid', phone: '+34 910 000 000' });
+  for (const [n, c] of [['Marta', '#7c3aed'], ['Carlos', '#2563eb']]) await rpc('saveStaff', { name: n, color: c, hours });
+  for (const [n, d, p] of [['Corte mujer', 45, 2500], ['Corte hombre', 30, 1500], ['Tinte', 90, 4500], ['Peinado', 30, 1800]]) await rpc('saveService', { name: n, durationMin: d, priceCents: p });
+  const ctx = await browser.newContext({ ...devices['Pixel 7'], locale: 'es-ES', timezoneId: 'Europe/Madrid' });
+  const page = await ctx.newPage();
+  await page.goto(`${S}/b/estudio-luna`);
+  await page.locator('.opt').first().click();
+  await page.locator('.day:not([disabled])').nth(1).click();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: out('booking.png') });
+  await ctx.close();
+  srv.kill();
 }
 
 await browser.close();

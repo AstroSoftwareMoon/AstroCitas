@@ -171,3 +171,29 @@ describe('sincronización', () => {
     expect(await a.db.listClients()).toHaveLength(1);
   });
 });
+
+describe('motor: cambios durante una sincronización', () => {
+  it('un cambio guardado mientras sincroniza se envía en la pasada encadenada', async () => {
+    const w = await world();
+    const a = await w.device('movil');
+    await a.engine.sync();
+    const first = a.engine.sync(); // pasada en curso
+    await a.db.saveClient({ name: 'Durante' });
+    const second = a.engine.sync(); // se encadena
+    await Promise.all([first, second]);
+    expect(await a.engine.pendingCount()).toBe(0);
+    expect((await w.server.listClients()).map((c) => c.name)).toContain('Durante');
+  });
+});
+
+describe('motor: escrituras durante la instantánea inicial', () => {
+  it('lo que el usuario guarda mientras se importa la instantánea sí se envía', async () => {
+    const w = await world();
+    const a = await w.device('movil');
+    const first = a.engine.sync(); // instantánea en curso
+    await a.db.saveClient({ name: 'Mientras importa' });
+    await first;
+    await a.engine.sync();
+    expect((await w.server.listClients()).map((c) => c.name)).toContain('Mientras importa');
+  });
+});
