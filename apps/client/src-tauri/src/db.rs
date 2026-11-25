@@ -52,8 +52,10 @@ impl Db {
         if conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| r.get::<_, i64>(0)).is_err() {
             return Err("ASTRO_LOCKED".into());
         }
-        // WAL descartado a propósito: el reemplazo de archivo al cifrar/descifrar es más simple con DELETE.
-        conn.execute_batch("PRAGMA journal_mode = DELETE; PRAGMA foreign_keys = ON;").map_err(|e| e.to_string())?;
+        // WAL + synchronous=NORMAL: cada guardado no espera a un fsync (en móvil era lo que más tardaba).
+        // Sigue siendo seguro ante cierres de la app; ante un corte de luz se pierde como mucho la última transacción.
+        conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON;")
+            .map_err(|e| e.to_string())?;
         *self.conn.lock().unwrap() = Some(conn);
         Ok(())
     }
@@ -65,7 +67,7 @@ impl Db {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn db_open(db: tauri::State<Db>, key: Option<String>, name: Option<String>) -> Result<(), String> {
     let file = match name.as_deref() {
         Some(n) if n.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') && !n.is_empty() => format!("{n}.db"),
@@ -77,25 +79,25 @@ pub fn db_open(db: tauri::State<Db>, key: Option<String>, name: Option<String>) 
     db.open(key)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn db_exec(db: tauri::State<Db>, sql: String) -> Result<(), String> {
     db.with(|c| c.execute_batch(&sql).map_err(|e| e.to_string()))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn db_run(db: tauri::State<Db>, sql: String, params: Vec<Json>) -> Result<Json, String> {
     db.with(|c| {
         let values: Vec<Value> = params.iter().map(to_sql).collect();
-        let changes = c.execute(&sql, rusqlite::params_from_iter(values)).map_err(|e| e.to_string())?;
+        let changes = c.prepare_cached(&sql).and_then(|mut st| st.execute(rusqlite::params_from_iter(values))).map_err(|e| e.to_string())?;
         Ok(serde_json::json!({ "changes": changes }))
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn db_all(db: tauri::State<Db>, sql: String, params: Vec<Json>) -> Result<Vec<Map<String, Json>>, String> {
     db.with(|c| {
         let values: Vec<Value> = params.iter().map(to_sql).collect();
-        let mut stmt = c.prepare(&sql).map_err(|e| e.to_string())?;
+        let mut stmt = c.prepare_cached(&sql).map_err(|e| e.to_string())?;
         let names: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
         let mut rows = stmt.query(rusqlite::params_from_iter(values)).map_err(|e| e.to_string())?;
         let mut out = Vec::new();
@@ -124,7 +126,7 @@ fn file_is_plain(path: &std::path::Path) -> bool {
 /// Establece, cambia o quita (None) la contraseña de la base de datos.
 /// - claro → cifrado y cifrado → claro: `sqlcipher_export` a un archivo nuevo y se reemplaza.
 /// - cifrado → otra clave: `PRAGMA rekey`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn db_rekey(db: tauri::State<Db>, new_key: Option<String>) -> Result<(), String> {
     let new_key = new_key.filter(|k| !k.is_empty());
     let path = db.file();

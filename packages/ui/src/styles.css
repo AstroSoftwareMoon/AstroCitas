@@ -37,6 +37,11 @@
 
 @layer base {
   html, body, #root { height: 100%; }
+  /* Zona segura superior (notch / barra de estado). En Android 15+ la app va de borde a borde y
+     algunos WebView no informan del inset: se usa un mínimo (clase añadida por la app nativa). */
+  :root { --safe-top: env(safe-area-inset-top, 0px); }
+  :root.edge-to-edge { --safe-top: max(env(safe-area-inset-top, 0px), 40px); }
+  #root { padding-top: var(--safe-top); }
   html { color-scheme: dark; background: #000; }
   body {
     @apply bg-black text-[#f2f2f3] antialiased;

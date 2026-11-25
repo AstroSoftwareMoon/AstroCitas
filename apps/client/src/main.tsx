@@ -13,6 +13,9 @@ async function openLocal(password?: string): Promise<OpenedStore> {
 }
 
 document.documentElement.classList.add('dark');
+// Android 15+ dibuja la app bajo la barra de estado (edge-to-edge obligatorio)
+const android = /Android (\d+)/.exec(navigator.userAgent);
+if (android && Number(android[1]) >= 15) document.documentElement.classList.add('edge-to-edge');
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AstroApp openLocal={openLocal} openCache={(name) => openNativeSqlite(undefined, name)} version={__APP_VERSION__} platform={tauriPlatform} />
