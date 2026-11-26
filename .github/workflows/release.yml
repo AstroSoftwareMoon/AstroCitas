@@ -393,7 +393,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          mkdir assets && cd assets
+          dir="$RUNNER_TEMP/release-assets"; mkdir -p "$dir" && cd "$dir"
           gh release download "$TAG" --pattern '*' --skip-existing
           rm -f SHA256SUMS.txt
           ls -la
