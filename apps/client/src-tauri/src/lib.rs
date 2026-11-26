@@ -51,6 +51,7 @@ pub fn run() {
             selfhost::selfhost_install,
             selfhost::selfhost_start,
             selfhost::selfhost_stop,
+            selfhost::selfhost_remove,
         ])
         .on_window_event(|window, event| {
             // Escritorio: cerrar la ventana la manda a la bandeja; los recordatorios siguen funcionando.

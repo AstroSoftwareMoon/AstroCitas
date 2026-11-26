@@ -28,7 +28,7 @@ import { useBiz, useDb, useInvalidate, useStorageInfo } from '../lib/data';
 import { useReduceGlass } from '../lib/theme';
 import { downloadFile, pickFile } from '../lib/util';
 import { errorMessage } from '../lib/errors';
-import { Button, Field, Input, PageHeader, Segmented, Select, Switch } from '../components/ui';
+import { Button, Field, Input, Modal, PageHeader, Segmented, Select, Switch } from '../components/ui';
 import { useToast } from '../components/toast';
 import { LogoMark } from '../components/Logo';
 import { useAppControl } from '../App';
@@ -482,6 +482,9 @@ function SelfHostSection({ version }: { version?: string }) {
   const [status, setStatus] = useState<SelfHostStatus | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [svg, setSvg] = useState('');
+  const [removing, setRemoving] = useState(false);
+  const [wipe, setWipe] = useState(false);
+  const [confirm, setConfirm] = useState('');
   const refresh = () => sh?.status().then(setStatus, toast.error);
   useEffect(() => {
     refresh();
@@ -538,6 +541,14 @@ function SelfHostSection({ version }: { version?: string }) {
             </Button>
           </div>
         </div>
+      ) : status.permissionDenied ? (
+        <div className="mt-3 space-y-2 text-sm">
+          <p>{t('selfhost.permission')}</p>
+          <code className="block rounded-2xl bg-white/[0.06] p-3 text-xs">sudo usermod -aG docker $USER</code>
+          <Button size="sm" onClick={() => refresh()}>
+            {t('selfhost.check')}
+          </Button>
+        </div>
       ) : !status.dockerRunning ? (
         <div className="mt-3 space-y-2 text-sm">
           <p>{t('selfhost.startDocker')}</p>
@@ -577,10 +588,55 @@ function SelfHostSection({ version }: { version?: string }) {
               <Button size="sm" variant="ghost" disabled={!!busy} onClick={install}>
                 {busy === t('selfhost.installing') ? busy : t('selfhost.update')}
               </Button>
+              <Button size="sm" variant="ghost" icon={<Trash2 size={14} />} disabled={!!busy} onClick={() => setRemoving(true)} data-testid="selfhost-remove">
+                {t('selfhost.remove')}
+              </Button>
             </div>
           </div>
         </div>
       )}
+      <Modal
+        open={removing}
+        onClose={() => setRemoving(false)}
+        title={t('selfhost.removeTitle')}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRemoving(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              variant="danger"
+              disabled={wipe && confirm !== 'BORRAR'}
+              onClick={async () => {
+                setRemoving(false);
+                const wasConnected = control.mode === 'remote' && control.session?.state.url === status?.url;
+                await act('remove', () => sh.remove(wipe));
+                if (wipe && wasConnected) await control.disconnect();
+                toast.show(wipe ? t('selfhost.removedAll') : t('selfhost.removed'));
+              }}
+            >
+              {wipe ? t('selfhost.removeAll') : t('selfhost.removeKeep')}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3 text-sm">
+          <Segmented
+            value={wipe ? 'all' : 'keep'}
+            onChange={(v) => setWipe(v === 'all')}
+            options={[
+              { value: 'keep', label: t('selfhost.optKeep') },
+              { value: 'all', label: t('selfhost.optAll') },
+            ]}
+          />
+          <p className="text-white/70">{wipe ? t('selfhost.allDesc') : t('selfhost.keepDesc')}</p>
+          {wipe && (
+            <Field label={t('selfhost.typeConfirm')}>
+              <Input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="BORRAR" autoComplete="off" />
+            </Field>
+          )}
+        </div>
+      </Modal>
     </Section>
   );
 }

@@ -31,6 +31,7 @@ export interface BackupEntry {
 export interface SelfHostStatus {
   docker: boolean;
   dockerRunning: boolean;
+  permissionDenied: boolean;
   installed: boolean;
   running: boolean;
   url: string | null;
@@ -57,6 +58,8 @@ export interface Platform {
     install(version: string, secret: string): Promise<string>;
     start(): Promise<void>;
     stop(): Promise<void>;
+    /** Quita el servidor; con deleteData borra también todos sus datos. */
+    remove(deleteData: boolean): Promise<void>;
   };
   /** Cifrado en reposo de la base local (SQLCipher en Tauri). No disponible en web. */
   database?: {

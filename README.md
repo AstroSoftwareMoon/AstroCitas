@@ -85,6 +85,7 @@ curl -fsSL https://github.com/AstroSoftwareMoon/AstroCitas/releases/latest/downl
 Instala Docker si hace falta y arranca AstroCitas con **Caddy** (HTTPS automático). **¿Sin dominio?** Pulsa Intro: usa la IP de tu equipo y te dice la dirección exacta (p. ej. `http://192.168.1.40`) para la app, el móvil y el iPhone.
 
 **Desde la app de escritorio, sin terminal:** *Ajustes → Servidor en este ordenador → Instalar* (usa Docker Desktop). Instala el servidor, te muestra la dirección y un QR para el móvil y conecta la app sola. Después, en la app: **Conectar a mi servidor** → URL + usuario. El asistente comprueba la versión y te ofrece subir tus datos locales.
+Para eliminarlo todo: el mismo comando con `| sh -s -- --uninstall`.
 Guía completa para **VPS, Raspberry Pi y NAS**, PostgreSQL/Redis opcionales, WhatsApp y copias: **[docs/SELFHOSTING.md](docs/SELFHOSTING.md)**.
 
 ## Funcionalidades

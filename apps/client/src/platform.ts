@@ -36,6 +36,7 @@ export const tauriPlatform: Platform = {
           install: (version, secret) => invoke('selfhost_install', { version, secret }),
           start: () => invoke('selfhost_start'),
           stop: () => invoke('selfhost_stop'),
+          remove: (deleteData) => invoke('selfhost_remove', { deleteData }),
         }
       : undefined,
 };

@@ -1,7 +1,7 @@
 {
   "name": "astrocitas",
   "private": true,
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "AstroCitas — agenda de citas local-first y autohospedable para negocios de servicios",
   "license": "AGPL-3.0-or-later",
   "packageManager": "pnpm@10.28.0",

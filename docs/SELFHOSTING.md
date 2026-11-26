@@ -43,6 +43,19 @@ en `~/astrocitas/.env` y ejecuta `docker compose up -d`. Para acceder desde fuer
 
 Al terminar, abre `https://citas.tudominio.es`, elige **Conectar a mi servidor** y crea la cuenta de administrador. Si ya usabas la app en modo local, el asistente te ofrece subir tus datos al servidor (se fusionan sin pérdidas y se verifica el recuento).
 
+## Desinstalar (eliminarlo todo)
+
+```bash
+curl -fsSL https://github.com/AstroSoftwareMoon/AstroCitas/releases/latest/download/install.sh | sh -s -- --uninstall
+```
+
+Pide escribir `BORRAR` y elimina los contenedores, **todos los datos** (volúmenes), las imágenes y la carpeta
+`~/astrocitas`. Exporta antes una copia desde la app si quieres conservar algo. Si lo instalaste desde la app de
+escritorio: *Ajustes → Servidor en este ordenador → Eliminar* (puedes quitar solo el servidor o eliminarlo todo).
+
+Si Docker da `permission denied`, el instalador usa `sudo` automáticamente. Para no necesitarlo:
+`sudo usermod -aG docker $USER` y vuelve a iniciar sesión.
+
 ## 2. Instalación manual con Docker Compose
 
 ```bash

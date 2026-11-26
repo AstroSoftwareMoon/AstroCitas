@@ -29,6 +29,8 @@ pub struct Status {
     docker: bool,
     /// El motor de Docker está en marcha.
     docker_running: bool,
+    /// Linux: el usuario no está en el grupo «docker».
+    permission_denied: bool,
     installed: bool,
     running: bool,
     url: Option<String>,
@@ -106,14 +108,17 @@ fn url_of(c: &Config) -> String {
 pub fn selfhost_status(app: AppHandle) -> Status {
     let ip = local_ip();
     let Some(bin) = docker_bin() else {
-        return Status { docker: false, docker_running: false, installed: false, running: false, url: None, ip };
+        return Status { docker: false, docker_running: false, permission_denied: false, installed: false, running: false, url: None, ip };
     };
-    let docker_running = run(&bin, &["info", "--format", "{{.ServerVersion}}"]).map(|o| o.status.success()).unwrap_or(false);
+    let info = run(&bin, &["info", "--format", "{{.ServerVersion}}"]).ok();
+    let docker_running = info.as_ref().map(|o| o.status.success()).unwrap_or(false);
+    let permission_denied = !docker_running
+        && info.map(|o| String::from_utf8_lossy(&o.stderr).to_lowercase().contains("permission denied")).unwrap_or(false);
     let state = run(&bin, &["inspect", "-f", "{{.State.Running}}", CONTAINER]).ok().filter(|o| o.status.success());
     let installed = state.is_some();
     let running = state.map(|o| String::from_utf8_lossy(&o.stdout).trim() == "true").unwrap_or(false);
     let url = load(&app).filter(|_| installed).map(|c| url_of(&c));
-    Status { docker: true, docker_running, installed, running, url, ip }
+    Status { docker: true, docker_running, permission_denied, installed, running, url, ip }
 }
 
 /// Descarga la imagen y (re)crea el contenedor. Los datos del volumen se conservan.
@@ -167,4 +172,23 @@ pub fn selfhost_start() -> Result<(), String> {
 pub fn selfhost_stop() -> Result<(), String> {
     let bin = docker_bin().ok_or("Docker no está instalado")?;
     ok(run(&bin, &["stop", CONTAINER])?).map(|_| ())
+}
+
+/// Elimina el servidor de este equipo. Con `delete_data` borra también el volumen con todas las
+/// citas, clientes y cuentas, y la configuración (secreto incluido): no se puede deshacer.
+#[tauri::command(async)]
+pub fn selfhost_remove(app: AppHandle, delete_data: bool) -> Result<(), String> {
+    let bin = docker_bin().ok_or("Docker no está instalado")?;
+    let _ = run(&bin, &["rm", "-f", CONTAINER]);
+    if delete_data {
+        let out = run(&bin, &["volume", "rm", VOLUME])?;
+        let err = String::from_utf8_lossy(&out.stderr).to_lowercase();
+        if !out.status.success() && !err.contains("no such volume") {
+            return Err(err.trim().to_string());
+        }
+        if let Ok(p) = config_path(&app) {
+            let _ = std::fs::remove_file(p);
+        }
+    }
+    Ok(())
 }
