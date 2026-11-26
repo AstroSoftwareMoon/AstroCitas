@@ -29,6 +29,15 @@ export const tauriPlatform: Platform = {
     isEncrypted,
     setPassword,
   },
+  selfHost:
+    os === 'desktop'
+      ? {
+          status: () => invoke('selfhost_status'),
+          install: (version, secret) => invoke('selfhost_install', { version, secret }),
+          start: () => invoke('selfhost_start'),
+          stop: () => invoke('selfhost_stop'),
+        }
+      : undefined,
 };
 
 /** Busca actualizaciones firmadas en GitHub Releases (solo escritorio). */

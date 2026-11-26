@@ -28,6 +28,15 @@ export interface BackupEntry {
  * Tauri (escritorio/Android) la sustituye con plugins nativos (SMTP, notificaciones del sistema,
  * archivos en la carpeta de datos, bandeja del sistema…).
  */
+export interface SelfHostStatus {
+  docker: boolean;
+  dockerRunning: boolean;
+  installed: boolean;
+  running: boolean;
+  url: string | null;
+  ip: string | null;
+}
+
 export interface Platform {
   kind: 'web' | 'desktop' | 'android' | 'ios';
   openExternal(url: string): void;
@@ -41,6 +50,13 @@ export interface Platform {
     list(): Promise<BackupEntry[]>;
     read(name: string): Promise<string>;
     remove(name: string): Promise<void>;
+  };
+  /** Instalar/gestionar el servidor propio en este mismo equipo con Docker (solo escritorio). */
+  selfHost?: {
+    status(): Promise<SelfHostStatus>;
+    install(version: string, secret: string): Promise<string>;
+    start(): Promise<void>;
+    stop(): Promise<void>;
   };
   /** Cifrado en reposo de la base local (SQLCipher en Tauri). No disponible en web. */
   database?: {

@@ -34,10 +34,10 @@ type Step = 'url' | 'login' | 'setup' | 'business' | 'migrate' | 'done';
  *  3) Elige negocio si tienes varios.
  *  4) Si hay datos en este dispositivo, ofrece subirlos (fusión sin pérdidas, verificada por recuento).
  */
-export function ConnectScreen({ onCancel, onConnected, openLocal }: { onCancel(): void; onConnected(s: ServerSession): void; openLocal?: () => Promise<{ db: DataAdapter }> }) {
+export function ConnectScreen({ onCancel, onConnected, openLocal, initialUrl }: { onCancel(): void; onConnected(s: ServerSession): void; openLocal?: () => Promise<{ db: DataAdapter }>; initialUrl?: string }) {
   const { t } = useI18n();
   const [step, setStep] = useState<Step>('url');
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState(initialUrl ?? '');
   const [info, setInfo] = useState<{ version: string } | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

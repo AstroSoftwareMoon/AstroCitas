@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import QRCode from 'qrcode';
-import { ArrowUpCircle, Building2, Copy, Download, Globe, ImagePlus, KeyRound, LogOut, Mail, Palette, Plus, Shield, Trash2, UserPlus, Users } from 'lucide-react';
+import { ArrowUpCircle, Building2, Smartphone, Copy, Download, Globe, ImagePlus, KeyRound, LogOut, Mail, Palette, Plus, Shield, Trash2, UserPlus, Users } from 'lucide-react';
 import { BookingPage, type ServerSession } from '@astrocitas/core';
 import { useI18n, type TKey } from '../i18n';
 import { useBusiness, useDb, useInvalidate, useStaff } from '../lib/data';
@@ -74,6 +74,7 @@ function Account({ session, onLogout }: { session: ServerSession; onLogout(): vo
 
   return (
     <>
+      <WebAccess url={session.state.url} />
       <Card icon={<Globe size={16} />} title={t('srv.connection')}>
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
           <dt className="text-ink-muted">{t('connect.url')}</dt>
@@ -656,6 +657,37 @@ function BookingLook({ url }: { url: string }) {
             className="h-[560px] w-full rounded-3xl border border-white/10 bg-black"
             data-testid="look-preview"
           />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/** La app completa en el navegador (iPhone, iPad o cualquier equipo), servida por el propio servidor. */
+function WebAccess({ url }: { url: string }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const [svg, setSvg] = useState('');
+  useEffect(() => {
+    QRCode.toString(url, { type: 'svg', margin: 1 }).then(setSvg);
+  }, [url]);
+  return (
+    <Card icon={<Smartphone size={16} />} title={t('web.title')}>
+      <div className="flex flex-wrap items-start gap-5">
+        <div className="w-32 rounded-3xl bg-white p-2" dangerouslySetInnerHTML={{ __html: svg }} />
+        <div className="min-w-0 flex-1 space-y-2 text-sm">
+          <p className="text-ink-muted">{t('web.desc')}</p>
+          <a href={url} target="_blank" rel="noreferrer" className="block truncate font-medium underline" data-testid="web-url">
+            {url}
+          </a>
+          <ol className="list-decimal space-y-1 pl-5 text-ink-muted">
+            <li>{t('web.step1')}</li>
+            <li>{t('web.step2')}</li>
+            <li>{t('web.step3')}</li>
+          </ol>
+          <Button size="sm" icon={<Copy size={14} />} onClick={() => navigator.clipboard?.writeText(url).then(() => toast.show(t('settings.copied')))}>
+            {t('settings.copyLink')}
+          </Button>
         </div>
       </div>
     </Card>

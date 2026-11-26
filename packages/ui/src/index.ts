@@ -1,4 +1,4 @@
 export { AstroApp, type AstroAppProps, type OpenedStore } from './App';
 export { LogoMark, Logo } from './components/Logo';
 export type { StorageInfo } from './lib/data';
-export { webPlatform, type Platform, type SmtpConfig, type EmailMessage, type BackupEntry } from './lib/platform';
+export { webPlatform, type Platform, type SmtpConfig, type EmailMessage, type BackupEntry, type SelfHostStatus } from './lib/platform';

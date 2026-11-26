@@ -1,6 +1,7 @@
 mod backups;
 mod db;
 mod mail;
+mod selfhost;
 
 use std::sync::Mutex;
 use tauri::Manager;
@@ -46,6 +47,10 @@ pub fn run() {
             backups::backup_save,
             backups::backup_read,
             backups::backup_remove,
+            selfhost::selfhost_status,
+            selfhost::selfhost_install,
+            selfhost::selfhost_start,
+            selfhost::selfhost_stop,
         ])
         .on_window_event(|window, event| {
             // Escritorio: cerrar la ventana la manda a la bandeja; los recordatorios siguen funcionando.

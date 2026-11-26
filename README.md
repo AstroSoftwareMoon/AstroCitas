@@ -82,7 +82,9 @@ Haz copias en **Ajustes → Tus datos**: archivo `.astrocitas`, opcionalmente ci
 curl -fsSL https://github.com/AstroSoftwareMoon/AstroCitas/releases/latest/download/install.sh | sh
 ```
 
-Instala Docker si hace falta y arranca AstroCitas con **Caddy** (HTTPS automático). Después, en la app: **Conectar a mi servidor** → URL + usuario. El asistente comprueba la versión y te ofrece subir tus datos locales.
+Instala Docker si hace falta y arranca AstroCitas con **Caddy** (HTTPS automático). **¿Sin dominio?** Pulsa Intro: usa la IP de tu equipo y te dice la dirección exacta (p. ej. `http://192.168.1.40`) para la app, el móvil y el iPhone.
+
+**Desde la app de escritorio, sin terminal:** *Ajustes → Servidor en este ordenador → Instalar* (usa Docker Desktop). Instala el servidor, te muestra la dirección y un QR para el móvil y conecta la app sola. Después, en la app: **Conectar a mi servidor** → URL + usuario. El asistente comprueba la versión y te ofrece subir tus datos locales.
 Guía completa para **VPS, Raspberry Pi y NAS**, PostgreSQL/Redis opcionales, WhatsApp y copias: **[docs/SELFHOSTING.md](docs/SELFHOSTING.md)**.
 
 ## Funcionalidades
@@ -116,7 +118,8 @@ Guía completa para **VPS, Raspberry Pi y NAS**, PostgreSQL/Redis opcionales, Wh
 
 **Reservas**
 - **Local:** QR / enlace en «modo solicitud», donde el cliente te escribe por WhatsApp o email. También una página de reserva exportable (`.html`) y un cartel con QR para imprimir.
-- **Servidor propio:** reserva online con huecos en tiempo real en `/b/tu-negocio`, **widget** para tu web, CAPTCHA autoalojado (ALTCHA) y cambio de cita desde el enlace del recordatorio.
+- **Servidor propio:** reserva online con huecos en tiempo real en `/b/tu-negocio`, **personalizable** (logo, colores, tema claro/oscuro, textos, precios, contacto) con vista previa, **widget** para tu web, CAPTCHA autoalojado (ALTCHA) y cambio de cita desde el enlace del recordatorio.
+- **iPhone y navegador:** tu servidor sirve la app completa como web; en el iPhone, *Añadir a pantalla de inicio*.
 
 **Informes y extras**
 - Citas, ingresos, ticket medio, **ocupación real**, no-shows, clientes nuevos, servicios top, por profesional, por método de cobro y por origen.

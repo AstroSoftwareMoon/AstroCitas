@@ -46,7 +46,8 @@ export interface AppControl {
   mode: 'local' | 'remote';
   session: ServerSession | null;
   sync: SyncEngine | null;
-  connect(): void;
+  /** Abre el asistente de conexión (opcionalmente con la URL ya puesta). */
+  connect(url?: string): void;
   disconnect(): Promise<void>;
 }
 export const AppControlContext = createContext<AppControl>({ mode: 'local', session: null, sync: null, connect: () => undefined, disconnect: async () => undefined });
@@ -107,6 +108,7 @@ export function AstroApp(props: AstroAppProps) {
 function Boot({ openLocal, version, openCache }: AstroAppProps) {
   const [mode, setModeState] = useState(readMode);
   const [connecting, setConnecting] = useState(false);
+  const [connectUrl, setConnectUrl] = useState<string | undefined>();
   const [store, setStore] = useState<OpenedStore | null>(null);
   const [session, setSession] = useState<ServerSession | null>(null);
   const [sync, setSync] = useState<SyncEngine | null>(null);
@@ -161,7 +163,10 @@ function Boot({ openLocal, version, openCache }: AstroAppProps) {
     mode: mode ?? 'local',
     session,
     sync,
-    connect: () => setConnecting(true),
+    connect: (url?: string) => {
+      setConnectUrl(url);
+      setConnecting(true);
+    },
     disconnect: async () => {
       await session?.logout();
       setSession(null);
@@ -174,6 +179,7 @@ function Boot({ openLocal, version, openCache }: AstroAppProps) {
   if (connecting)
     return (
       <ConnectScreen
+        initialUrl={connectUrl}
         openLocal={mode === 'remote' ? undefined : store ? async () => store : () => openLocal()}
         onCancel={() => setConnecting(false)}
         onConnected={(s) => {

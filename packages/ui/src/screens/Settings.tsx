@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import QRCode from 'qrcode';
-import { CalendarClock, Copy, Database, Download, FileCode, FileText, HardDrive, History, Lock, Palette, Printer, QrCode, Server, ShieldCheck, Star, Store, Trash2, Upload } from 'lucide-react';
+import { CalendarClock, Container, Copy, ExternalLink, Loader2, Play, Square, Database, Download, FileCode, FileText, HardDrive, History, Lock, Palette, Printer, QrCode, Server, ShieldCheck, Star, Store, Trash2, Upload } from 'lucide-react';
 import {
   BusinessKind,
   decryptJson,
@@ -21,7 +21,7 @@ import {
   type BackupFile,
   type Business,
 } from '@astrocitas/core';
-import { usePlatform } from '../lib/platform';
+import { usePlatform, type SelfHostStatus } from '../lib/platform';
 import { useServices, useStaff } from '../lib/data';
 import { useI18n, type Lang, type TKey } from '../i18n';
 import { useBiz, useDb, useInvalidate, useStorageInfo } from '../lib/data';
@@ -292,6 +292,8 @@ export function SettingsScreen({ version }: { version?: string }) {
 
           <ModeSection />
 
+          <SelfHostSection version={version} />
+
           <div className="flex items-center justify-center gap-2 py-4 text-xs text-white/40">
             <LogoMark size={16} /> AstroCitas {version ?? ''} · AGPL-3.0 · Open source
           </div>
@@ -461,10 +463,123 @@ function ModeSection() {
           <p className="text-sm text-white/70">
             <strong>{t('settings.serverFeatures')}:</strong> {t('settings.serverFeaturesList')}.
           </p>
-          <Button className="mt-3" variant="primary" icon={<Server size={16} />} onClick={control.connect} data-testid="connect-server">
+          <Button className="mt-3" variant="primary" icon={<Server size={16} />} onClick={() => control.connect()} data-testid="connect-server">
             {t('connect.connectBtn')}
           </Button>
         </>
+      )}
+    </Section>
+  );
+}
+
+/** Instalar el servidor propio en este ordenador (Docker) y conectar la app, sin terminal. */
+function SelfHostSection({ version }: { version?: string }) {
+  const { t } = useI18n();
+  const platform = usePlatform();
+  const control = useAppControl();
+  const toast = useToast();
+  const sh = platform.selfHost;
+  const [status, setStatus] = useState<SelfHostStatus | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [svg, setSvg] = useState('');
+  const refresh = () => sh?.status().then(setStatus, toast.error);
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (status?.url) QRCode.toString(status.url, { type: 'svg', margin: 1 }).then(setSvg);
+  }, [status?.url]);
+  if (!sh) return null;
+
+  async function act(label: string, fn: () => Promise<unknown>) {
+    setBusy(label);
+    try {
+      await fn();
+    } catch (e) {
+      toast.error(e);
+    } finally {
+      setBusy(null);
+      await refresh();
+    }
+  }
+  async function install() {
+    await act(t('selfhost.installing'), async () => {
+      const secret = [...crypto.getRandomValues(new Uint8Array(32))].map((b) => b.toString(16).padStart(2, '0')).join('');
+      const url = await sh!.install(version ?? 'latest', secret);
+      // Esperar a que responda (primer arranque: migraciones).
+      for (let i = 0; i < 60; i++) {
+        try {
+          if ((await fetch(`${url}/health`)).ok) break;
+        } catch {
+          /* arrancando */
+        }
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+      toast.show(t('selfhost.ready'));
+    });
+  }
+
+  const ipChanged = status?.url && status.ip && !status.url.includes(`//${status.ip}:`);
+  return (
+    <Section icon={<Container size={18} />} title={t('selfhost.title')}>
+      <p className="text-sm text-white/70">{t('selfhost.desc')}</p>
+      {!status ? (
+        <Loader2 size={18} className="mt-3 animate-spin text-white/50" />
+      ) : !status.docker ? (
+        <div className="mt-3 space-y-2 text-sm">
+          <p>{t('selfhost.needDocker')}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="primary" icon={<ExternalLink size={14} />} onClick={() => platform.openExternal('https://www.docker.com/products/docker-desktop/')}>
+              {t('selfhost.getDocker')}
+            </Button>
+            <Button size="sm" onClick={() => refresh()}>
+              {t('selfhost.check')}
+            </Button>
+          </div>
+        </div>
+      ) : !status.dockerRunning ? (
+        <div className="mt-3 space-y-2 text-sm">
+          <p>{t('selfhost.startDocker')}</p>
+          <Button size="sm" onClick={() => refresh()}>
+            {t('selfhost.check')}
+          </Button>
+        </div>
+      ) : !status.installed ? (
+        <Button className="mt-3" variant="primary" icon={busy ? <Loader2 size={16} className="animate-spin" /> : <Container size={16} />} disabled={!!busy} onClick={install} data-testid="selfhost-install">
+          {busy ?? t('selfhost.install')}
+        </Button>
+      ) : (
+        <div className="mt-3 flex flex-wrap items-start gap-4">
+          {svg && <div className="w-28 rounded-2xl bg-white p-1.5" dangerouslySetInnerHTML={{ __html: svg }} />}
+          <div className="min-w-0 flex-1 space-y-2 text-sm">
+            <p>
+              <span className={status.running ? 'text-emerald-300' : 'text-white/50'}>● {status.running ? t('selfhost.running') : t('selfhost.stopped')}</span>
+            </p>
+            <p className="break-all font-medium">{status.url}</p>
+            <p className="text-white/60">{t('selfhost.share')}</p>
+            {ipChanged && <p className="text-amber-200">{t('selfhost.ipChanged', { ip: status.ip ?? '' })}</p>}
+            <div className="flex flex-wrap gap-2">
+              {control.mode !== 'remote' && status.running && (
+                <Button size="sm" variant="primary" onClick={() => control.connect(status.url ?? undefined)}>
+                  {t('selfhost.connect')}
+                </Button>
+              )}
+              {status.running ? (
+                <Button size="sm" icon={<Square size={14} />} disabled={!!busy} onClick={() => act('stop', sh.stop)}>
+                  {t('selfhost.stop')}
+                </Button>
+              ) : (
+                <Button size="sm" icon={<Play size={14} />} disabled={!!busy} onClick={() => act('start', sh.start)}>
+                  {t('selfhost.start')}
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" disabled={!!busy} onClick={install}>
+                {busy === t('selfhost.installing') ? busy : t('selfhost.update')}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </Section>
   );
