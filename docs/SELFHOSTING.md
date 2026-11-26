@@ -15,7 +15,7 @@ Requisitos mínimos: 1 vCPU, 512 MB de RAM y 1 GB de disco. Funciona en una Rasp
 ## 1. Instalación en un comando (VPS o Raspberry Pi)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AstroSoftwareMoon/AstroCitas/main/deploy/install.sh | sh
+curl -fsSL https://github.com/AstroSoftwareMoon/AstroCitas/releases/latest/download/install.sh | sh
 ```
 
 El script hace lo siguiente:
@@ -33,9 +33,9 @@ Al terminar, abre `https://citas.tudominio.es`, elige **Conectar a mi servidor**
 
 ```bash
 mkdir astrocitas && cd astrocitas
-curl -fsSLO https://raw.githubusercontent.com/AstroSoftwareMoon/AstroCitas/main/deploy/docker-compose.yml
-curl -fsSLO https://raw.githubusercontent.com/AstroSoftwareMoon/AstroCitas/main/deploy/Caddyfile
-curl -fsSL https://raw.githubusercontent.com/AstroSoftwareMoon/AstroCitas/main/deploy/.env.example -o .env
+curl -fsSLO https://github.com/AstroSoftwareMoon/AstroCitas/releases/latest/download/docker-compose.yml
+curl -fsSLO https://github.com/AstroSoftwareMoon/AstroCitas/releases/latest/download/Caddyfile
+curl -fsSL https://github.com/AstroSoftwareMoon/AstroCitas/releases/latest/download/env.example -o .env
 nano .env            # DOMAIN y ASTRO_SECRET (openssl rand -hex 32)
 docker compose up -d
 curl -fsS https://citas.tudominio.es/health

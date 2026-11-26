@@ -79,7 +79,7 @@ Haz copias en **Ajustes → Tus datos**: archivo `.astrocitas`, opcionalmente ci
 ### Modo B · Autohospedado
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AstroSoftwareMoon/AstroCitas/main/deploy/install.sh | sh
+curl -fsSL https://github.com/AstroSoftwareMoon/AstroCitas/releases/latest/download/install.sh | sh
 ```
 
 Instala Docker si hace falta y arranca AstroCitas con **Caddy** (HTTPS automático). Después, en la app: **Conectar a mi servidor** → URL + usuario. El asistente comprueba la versión y te ofrece subir tus datos locales.

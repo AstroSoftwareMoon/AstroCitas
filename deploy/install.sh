@@ -1,9 +1,10 @@
 #!/bin/sh
-# Instalador de AstroCitas (servidor) — curl -fsSL https://raw.githubusercontent.com/AstroSoftwareMoon/AstroCitas/main/deploy/install.sh | sh
+# Instalador de AstroCitas (servidor) — curl -fsSL https://github.com/AstroSoftwareMoon/AstroCitas/releases/latest/download/install.sh | sh
 # Funciona en Debian/Ubuntu/Raspberry Pi OS y cualquier Linux con Docker. Idempotente.
 set -eu
 DIR="${ASTROCITAS_DIR:-$HOME/astrocitas}"
-RAW="https://raw.githubusercontent.com/AstroSoftwareMoon/AstroCitas/main/deploy"
+# Los archivos de despliegue se publican en cada release: siempre coinciden con la última versión.
+BASE="${ASTROCITAS_BASE:-https://github.com/AstroSoftwareMoon/AstroCitas/releases/latest/download}"
 
 say() { printf '\033[1m▸ %s\033[0m\n' "$*"; }
 
@@ -14,9 +15,9 @@ fi
 docker compose version >/dev/null 2>&1 || { echo "Necesitas Docker Compose v2"; exit 1; }
 
 mkdir -p "$DIR" && cd "$DIR"
-for f in docker-compose.yml Caddyfile .env.example; do
-  [ -f "$f" ] || curl -fsSL "$RAW/$f" -o "$f"
-done
+[ -f docker-compose.yml ] || curl -fsSL "$BASE/docker-compose.yml" -o docker-compose.yml
+[ -f Caddyfile ] || curl -fsSL "$BASE/Caddyfile" -o Caddyfile
+[ -f .env.example ] || curl -fsSL "$BASE/env.example" -o .env.example
 
 if [ ! -f .env ]; then
   cp .env.example .env
