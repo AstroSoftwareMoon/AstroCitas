@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { createChallenge, verifySolution } from 'altcha-lib';
 import {
   addDays,
+  BookingPage,
   computeSlots,
   ConflictError,
   dayBounds,
@@ -38,10 +39,43 @@ async function resolve(app: App, slug: string): Promise<{ row: BusinessRow; db: 
 }
 
 /** Página HTML mínima con el estilo de AstroCitas (negro + cristal) para respuestas y la reserva. */
-export function page(title: string, inner: string, opts: { scripts?: string[]; lang?: string; embed?: boolean } = {}) {
+export function page(title: string, inner: string, opts: { scripts?: string[]; lang?: string; embed?: boolean; look?: BookingPage } = {}) {
+  const look = opts.look;
+  const cls = [opts.embed ? 'embed' : '', look?.theme === 'light' ? 'light' : '', look?.background === 'plain' ? 'plain' : ''].filter(Boolean).join(' ');
+  // En tema claro, el blanco por defecto no se vería: se usa casi negro.
+  const accent = look && look.theme === 'light' && look.accent.toLowerCase() === '#ffffff' ? '#111111' : look?.accent;
+  const style = accent ? ` style="--accent:${accent};--on-accent:${onAccent(accent)}"` : '';
   return `<!doctype html><html lang="${opts.lang ?? 'es'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><meta name="robots" content="noindex"><link rel="stylesheet" href="/public/booking.css">
-</head><body class="${opts.embed ? 'embed' : ''}"><main>${inner}</main>${(opts.scripts ?? []).map((s) => `<script src="${s}" defer></script>`).join('')}</body></html>`;
+${look?.logo ? `<link rel="icon" href="${look.logo}">` : ''}</head><body class="${cls}"${style}><main>${inner}</main>${(opts.scripts ?? []).map((s) => `<script src="${s}" defer></script>`).join('')}</body></html>`;
+}
+
+/** Texto negro o blanco según la luminancia del color de acento (contraste legible). */
+function onAccent(hex: string) {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b! > 0.4 ? '#000' : '#fff';
+}
+
+export const lookOf = (business: Business) => BookingPage.parse(business.settings?.booking ?? {});
+
+/** Cabecera y pie de la página de reservas con la personalización del negocio. */
+function bookingShell(business: Business, look: BookingPage, inner: string, reschedule: boolean) {
+  const en = business.locale === 'en';
+  const title = reschedule ? (en ? 'Change my appointment' : 'Cambiar mi cita') : look.title || (en ? 'Book an appointment' : 'Reserva tu cita');
+  const head = `<header class="brand">${look.logo ? `<img class="logo" src="${look.logo}" alt="">` : ''}<p class="muted">${esc(business.name)}</p><h1>${esc(title)}</h1>${
+    look.welcome && !reschedule ? `<p class="welcome">${esc(look.welcome).replace(/\n/g, '<br>')}</p>` : ''
+  }</header>`;
+  const contact = look.showContact
+    ? [
+        business.address ? `<a href="https://www.openstreetmap.org/search?query=${encodeURIComponent(business.address)}" target="_blank" rel="noopener">${esc(business.address)}</a>` : '',
+        business.phone ? `<a href="tel:${esc(business.phone.replace(/\s+/g, ''))}">${esc(business.phone)}</a>` : '',
+      ].filter(Boolean)
+    : [];
+  const foot =
+    contact.length || look.footer
+      ? `<footer class="foot">${contact.length ? `<p>${contact.join(' · ')}</p>` : ''}${look.footer ? `<p>${esc(look.footer).replace(/\n/g, '<br>')}</p>` : ''}</footer>`
+      : '';
+  return head + inner + foot;
 }
 
 export function publicRoutes(f: FastifyInstance, app: App, deps: PublicDeps) {
@@ -71,11 +105,13 @@ export function publicRoutes(f: FastifyInstance, app: App, deps: PublicDeps) {
   // ---------- página de reserva ----------
   f.get<{ Params: { slug: string }; Querystring: { embed?: string; r?: string } }>('/b/:slug', async (req, reply) => {
     const { business } = await resolve(app, req.params.slug);
-    const inner = `<div id="app" data-slug="${esc(req.params.slug)}" data-reschedule="${esc(req.query.r ?? '')}" data-captcha="${app.cfg.captcha ? '1' : '0'}"><p class="muted">${esc(business.name)}</p><h1>${business.locale === 'en' ? 'Book an appointment' : 'Reserva tu cita'}</h1><noscript>Activa JavaScript para reservar.</noscript></div>`;
+    const look = lookOf(business);
+    const app_ = `<div id="app" data-slug="${esc(req.params.slug)}" data-reschedule="${esc(req.query.r ?? '')}" data-captcha="${app.cfg.captcha ? '1' : '0'}"><noscript>Activa JavaScript para reservar.</noscript></div>`;
     return reply
       .type('text/html')
-      .header('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors *; base-uri 'none'")
-      .send(page(business.name, inner, { scripts: ['/public/booking.js'], lang: business.locale, embed: req.query.embed === '1' }));
+      .header('Cache-Control', 'no-store')
+      .header('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors *; base-uri 'none'")
+      .send(page(business.name, bookingShell(business, look, app_, !!req.query.r), { scripts: ['/public/booking.js'], lang: business.locale, embed: req.query.embed === '1', look }));
   });
 
   // ---------- API pública ----------
@@ -88,6 +124,7 @@ export function publicRoutes(f: FastifyInstance, app: App, deps: PublicDeps) {
       staff: staff.map((s) => ({ id: s.id, name: s.name, color: s.color, serviceIds: s.serviceIds })),
       today: todayLocal(business.timezone),
       captcha: app.cfg.captcha,
+      booking: (({ showPrices, chooseStaff }) => ({ showPrices, chooseStaff }))(lookOf(business)),
     };
   });
 
@@ -226,7 +263,7 @@ export function publicRoutes(f: FastifyInstance, app: App, deps: PublicDeps) {
     // GET solo muestra un botón: los antivirus/previsualizadores que abren enlaces no cancelan citas.
     const inner = `<div class="glass"><p class="muted">${esc(business.name)}</p><h1>${esc(when)}</h1>
 <form method="post"><button class="primary" type="submit">${p.x === 'cancel' ? t.cancel : t.confirm}</button></form></div>`;
-    return reply.type('text/html').send(page(business.name, inner, { lang: business.locale }));
+    return reply.type('text/html').send(page(business.name, inner, { lang: business.locale, look: lookOf(business) }));
   });
 
   f.post<{ Params: { token: string } }>('/r/:token', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (req, reply) => {
@@ -241,7 +278,7 @@ export function publicRoutes(f: FastifyInstance, app: App, deps: PublicDeps) {
       if (p.x === 'cancel') deps.onCancelled(p.b, p.a);
     }
     const msg = r.ok ? (p.x === 'cancel' ? t.done_cancel : t.done_confirm) : t[(r.reason ?? 'not_found') as keyof typeof t];
-    return reply.type('text/html').send(page(business.name, `<div class="glass"><p class="muted">${esc(business.name)}</p><h1>${esc(msg)}</h1></div>`, { lang: business.locale }));
+    return reply.type('text/html').send(page(business.name, `<div class="glass"><p class="muted">${esc(business.name)}</p><h1>${esc(msg)}</h1></div>`, { lang: business.locale, look: lookOf(business) }));
   });
 
   // ---------- calendario suscribible (.ics) ----------

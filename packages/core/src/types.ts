@@ -36,6 +36,32 @@ export const BusinessKind = z.enum([
 ]);
 export type BusinessKind = z.infer<typeof BusinessKind>;
 
+/** Aspecto y opciones de la página pública de reservas (servidor propio). */
+export const BookingPage = z.object({
+  /** Título grande (vacío = «Reserva tu cita»). */
+  title: z.string().max(80).default(''),
+  /** Texto de bienvenida bajo el título. */
+  welcome: z.string().max(600).default(''),
+  /** Color de botones y selección. */
+  accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#ffffff'),
+  theme: z.enum(['dark', 'light']).default('dark'),
+  background: z.enum(['aurora', 'plain']).default('aurora'),
+  /** Logo como data URL (PNG/JPEG/WebP/SVG, máx. ~300 KB). */
+  logo: z
+    .string()
+    .max(400_000)
+    .regex(/^(data:image\/(png|jpeg|webp|svg\+xml);base64,[A-Za-z0-9+/=]+)?$/, 'Imagen no válida')
+    .default(''),
+  showPrices: z.boolean().default(true),
+  /** Dejar que el cliente elija profesional. */
+  chooseStaff: z.boolean().default(true),
+  /** Mostrar dirección, teléfono y mapa al pie. */
+  showContact: z.boolean().default(true),
+  /** Nota al pie (política de cancelación, parking…). */
+  footer: z.string().max(600).default(''),
+});
+export type BookingPage = z.infer<typeof BookingPage>;
+
 export const BusinessSettings = z.object({
   /** Granularidad de huecos ofrecidos (min). */
   slotStep: z.number().int().min(5).max(120).default(15),
@@ -50,6 +76,8 @@ export const BusinessSettings = z.object({
   loyaltyReward: z.string().max(120).default(''),
   /** Enlace para pedir reseñas (Google, etc.): variable {enlace} de la plantilla de reseña. */
   reviewUrl: z.string().max(500).default(''),
+  /** Página pública de reservas personalizada. */
+  booking: BookingPage.default(BookingPage.parse({})),
 });
 export type BusinessSettings = z.infer<typeof BusinessSettings>;
 

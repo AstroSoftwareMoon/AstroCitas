@@ -89,5 +89,21 @@ test('por http://IP: crear admin, usar la agenda y reservar con CAPTCHA', async 
   await page.locator('#k').check();
   await page.getByRole('button', { name: 'Reservar cita' }).click();
   await expect(page.getByTestId('booked')).toContainText('¡Cita reservada!', { timeout: 60_000 });
+
+  // Personalizar la página de reservas desde la app (pestaña Reserva online)
+  await page.goto(`${BASE}/#/server`);
+  await page.getByRole('tab', { name: 'Reserva online' }).click();
+  await page.getByTestId('look-title').fill('Pide cita en Robles');
+  await page.getByRole('tab', { name: 'Claro' }).click();
+  await page.getByLabel('Mostrar precios').click();
+  await page.getByPlaceholder(/Cancelaciones con 24 h/).fill('Parking gratuito');
+  await page.getByTestId('look-save').click();
+  const preview = page.frameLocator('[data-testid="look-preview"]');
+  await expect(preview.getByRole('heading', { name: 'Pide cita en Robles' })).toBeVisible({ timeout: 15_000 });
+  await expect(preview.getByText('Parking gratuito')).toBeVisible();
+  const html = await (await fetch(pub.bookingUrl)).text();
+  expect(html).toContain('class="light"');
+  const info = await (await fetch(`${BASE}/api/v1/public/${pub.slug}`)).json();
+  expect(info.booking).toEqual({ showPrices: false, chooseStaff: true });
   expect(errors).toEqual([]);
 });

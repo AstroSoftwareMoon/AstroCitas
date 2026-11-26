@@ -83,16 +83,18 @@
   function render() {
     var info = S.info;
     var form = h('div');
-    root.replaceChildren(h('p', { class: 'muted' }, [info.business.name]), h('h1', {}, [reschedule ? T.moving : (info.business.locale === 'en' ? 'Book an appointment' : 'Reserva tu cita')]), form);
+    // La cabecera (logo, título, bienvenida) y el pie los pinta el servidor con la personalización.
+    var opts = info.booking || { showPrices: true, chooseStaff: true };
+    root.replaceChildren(form);
 
     form.append(h('h2', {}, [T.service]), h('div', { class: 'grid' }, info.services.map(function (s) {
       return h('button', { class: 'opt', type: 'button', 'aria-pressed': S.service === s.id ? 'true' : 'false', on: { click: function () { S.service = s.id; S.slot = null; loadDays(); } } },
-        [s.name, h('small', {}, [s.durationMin + ' ' + T.min + (s.priceCents ? ' · ' + fmtMoney(s.priceCents) : '')])]);
+        [s.name, h('small', {}, [s.durationMin + ' ' + T.min + (s.priceCents && opts.showPrices ? ' · ' + fmtMoney(s.priceCents) : '')])]);
     })));
     if (!S.service) return resize();
 
     var staff = info.staff.filter(function (p) { return !p.serviceIds.length || p.serviceIds.indexOf(S.service) >= 0; });
-    if (staff.length > 1) form.append(h('h2', {}, [T.staff]), h('div', { class: 'chips' }, [{ id: '', name: T.any }].concat(staff).map(function (p) {
+    if (staff.length > 1 && opts.chooseStaff) form.append(h('h2', {}, [T.staff]), h('div', { class: 'chips' }, [{ id: '', name: T.any }].concat(staff).map(function (p) {
       return h('button', { class: 'chip', type: 'button', 'aria-pressed': S.staff === p.id ? 'true' : 'false', on: { click: function () { S.staff = p.id; S.slot = null; loadDays(); } } }, [p.name]);
     })));
 
@@ -151,7 +153,7 @@
     var s = S.info.services.find(function (x) { return x.id === S.service; });
     var when = new Intl.DateTimeFormat(S.info.business.locale === 'en' ? 'en-GB' : 'es-ES', { timeZone: S.info.business.timezone, dateStyle: 'full', timeStyle: 'short' }).format(j.appointment.startsAt);
     root.replaceChildren(h('div', { class: 'glass ok', 'data-testid': 'booked' }, [
-      h('p', { class: 'muted' }, [S.info.business.name]), h('h1', {}, [reschedule ? T.moved : T.done]),
+      h('h1', {}, [reschedule ? T.moved : T.done]),
       h('div', { class: 'summary' }, [h('span', {}, [s ? s.name : '']), h('b', {}, [when])]),
       h('p', { class: 'muted', style: 'margin-top:12px' }, [T.doneDesc]),
       h('button', { class: 'primary', type: 'button', on: { click: function () { reschedule = ''; S.slot = null; S.date = null; loadDays(); } } }, [T.another])

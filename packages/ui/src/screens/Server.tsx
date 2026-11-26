@@ -1,12 +1,12 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import QRCode from 'qrcode';
-import { ArrowUpCircle, Building2, Copy, Download, Globe, KeyRound, LogOut, Mail, Plus, Shield, Trash2, UserPlus, Users } from 'lucide-react';
-import type { ServerSession } from '@astrocitas/core';
+import { ArrowUpCircle, Building2, Copy, Download, Globe, ImagePlus, KeyRound, LogOut, Mail, Palette, Plus, Shield, Trash2, UserPlus, Users } from 'lucide-react';
+import { BookingPage, type ServerSession } from '@astrocitas/core';
 import { useI18n, type TKey } from '../i18n';
-import { useStaff } from '../lib/data';
+import { useBusiness, useDb, useInvalidate, useStaff } from '../lib/data';
 import { cx, downloadFile } from '../lib/util';
-import { Badge, Button, Field, Input, PageHeader, Segmented, Select, Switch } from '../components/ui';
+import { Badge, Button, ColorSwatches, Field, Input, PageHeader, Segmented, Select, Switch, Textarea } from '../components/ui';
 import { useToast } from '../components/toast';
 
 type Tab = 'account' | 'team' | 'messaging' | 'booking' | 'backups' | 'admin';
@@ -395,6 +395,7 @@ function Booking({ session }: { session: ServerSession }) {
           </div>
         </div>
       </Card>
+      <BookingLook url={data.bookingUrl} />
       <Card icon={<Plus size={16} />} title={t('srv.widget')}>
         <p className="mb-2 text-sm text-ink-muted">{t('srv.widgetDesc')}</p>
         <code className="block break-all rounded-2xl bg-white/[0.06] p-3 text-xs">{data.widgetSnippet}</code>
@@ -527,5 +528,136 @@ function Admin({ session }: { session: ServerSession }) {
       </Card>
       {temp && <p className="rounded-2xl bg-amber-500/10 p-3 text-sm text-amber-100">{t('srv.tempPassword', { p: temp })}</p>}
     </>
+  );
+}
+
+const ACCENTS = ['#ffffff', '#111111', '#7c3aed', '#2563eb', '#0891b2', '#059669', '#65a30d', '#d97706', '#dc2626', '#db2777'];
+
+/** Reduce una imagen a máx. 480 px (WebP/PNG) para guardarla como data URL ligera. */
+async function logoDataUrl(file: File): Promise<string> {
+  const raw = await new Promise<string>((ok, ko) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result));
+    r.onerror = () => ko(r.error);
+    r.readAsDataURL(file);
+  });
+  if (file.type === 'image/svg+xml') {
+    if (raw.length > 300_000) throw new Error('SVG demasiado grande');
+    return raw;
+  }
+  const img = new Image();
+  await new Promise((ok, ko) => {
+    img.onload = ok;
+    img.onerror = ko;
+    img.src = raw;
+  });
+  const k = Math.min(1, 480 / Math.max(img.width, img.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width * k);
+  c.height = Math.round(img.height * k);
+  c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height);
+  const webp = c.toDataURL('image/webp', 0.9);
+  return webp.startsWith('data:image/webp') ? webp : c.toDataURL('image/png');
+}
+
+/** Personalización de la página pública de reservas, con vista previa en vivo. */
+function BookingLook({ url }: { url: string }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const db = useDb();
+  const invalidate = useInvalidate();
+  const { data: biz } = useBusiness();
+  const [look, setLook] = useState<BookingPage | null>(null);
+  const [version, setVersion] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (biz && !look) setLook(BookingPage.parse(biz.settings.booking ?? {}));
+  }, [biz, look]);
+  if (!biz || !look) return null;
+  const set = <K extends keyof BookingPage>(k: K, v: BookingPage[K]) => setLook({ ...look, [k]: v });
+
+  async function save() {
+    if (!biz || !look) return;
+    setBusy(true);
+    try {
+      await db.saveBusiness({ ...biz, settings: { ...biz.settings, booking: look } });
+      await invalidate();
+      setVersion((v) => v + 1);
+      toast.show(t('common.saved'));
+    } catch (e) {
+      toast.error(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function pickLogo(file?: File) {
+    if (!file) return;
+    try {
+      set('logo', await logoDataUrl(file));
+    } catch (e) {
+      toast.error(e);
+    }
+  }
+
+  return (
+    <Card icon={<Palette size={16} />} title={t('look.title')}>
+      <p className="mb-4 text-sm text-ink-muted">{t('look.desc')}</p>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-white/[0.06]">
+              {look.logo ? <img src={look.logo} alt="" className="max-h-full max-w-full object-contain" /> : <ImagePlus size={20} className="text-ink-muted" />}
+            </div>
+            <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={(e) => pickLogo(e.target.files?.[0])} data-testid="look-logo" />
+            <Button size="sm" icon={<ImagePlus size={14} />} onClick={() => fileRef.current?.click()}>
+              {t('look.logo')}
+            </Button>
+            {look.logo && (
+              <Button size="sm" variant="ghost" onClick={() => set('logo', '')}>
+                {t('look.removeLogo')}
+              </Button>
+            )}
+          </div>
+          <Field label={t('look.heading')} hint={t('look.headingHint')}>
+            <Input value={look.title} maxLength={80} onChange={(e) => set('title', e.target.value)} data-testid="look-title" />
+          </Field>
+          <Field label={t('look.welcome')}>
+            <Textarea value={look.welcome} maxLength={600} onChange={(e) => set('welcome', e.target.value)} placeholder={t('look.welcomePh')} />
+          </Field>
+          <Field label={t('look.accent')}>
+            <div className="flex flex-wrap items-center gap-3">
+              <ColorSwatches value={look.accent} onChange={(c) => set('accent', c)} colors={ACCENTS} />
+              <input type="color" value={look.accent} onChange={(e) => set('accent', e.target.value)} aria-label={t('look.accent')} className="h-9 w-12 cursor-pointer rounded-xl bg-transparent" />
+            </div>
+          </Field>
+          <div className="flex flex-wrap gap-3">
+            <Segmented value={look.theme} onChange={(v) => set('theme', v)} options={[{ value: 'dark', label: t('look.dark') }, { value: 'light', label: t('look.light') }]} />
+            <Segmented value={look.background} onChange={(v) => set('background', v)} options={[{ value: 'aurora', label: t('look.aurora') }, { value: 'plain', label: t('look.plain') }]} />
+          </div>
+          <div className="space-y-2 rounded-3xl bg-white/[0.04] p-3">
+            <Switch checked={look.showPrices} onChange={(v) => set('showPrices', v)} label={t('look.showPrices')} />
+            <Switch checked={look.chooseStaff} onChange={(v) => set('chooseStaff', v)} label={t('look.chooseStaff')} />
+            <Switch checked={look.showContact} onChange={(v) => set('showContact', v)} label={t('look.showContact')} description={t('look.showContactDesc')} />
+          </div>
+          <Field label={t('look.footer')}>
+            <Textarea value={look.footer} maxLength={600} onChange={(e) => set('footer', e.target.value)} placeholder={t('look.footerPh')} />
+          </Field>
+          <Button variant="primary" onClick={save} disabled={busy} data-testid="look-save">
+            {t('look.save')}
+          </Button>
+        </div>
+        <div>
+          <span className="label">{t('look.preview')}</span>
+          <iframe
+            key={version}
+            title={t('look.preview')}
+            src={`${url}?embed=1&v=${version}`}
+            className="h-[560px] w-full rounded-3xl border border-white/10 bg-black"
+            data-testid="look-preview"
+          />
+        </div>
+      </div>
+    </Card>
   );
 }
