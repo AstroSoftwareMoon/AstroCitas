@@ -23,9 +23,10 @@ if [ ! -f .env ]; then
   cp .env.example .env
   secret=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
   sed -i.bak "s/^ASTRO_SECRET=.*/ASTRO_SECRET=$secret/" .env && rm -f .env.bak
-  printf 'Dominio (p. ej. citas.tudominio.es): '
+  printf 'Dominio (p. ej. citas.tudominio.es; Intro = probar en este equipo con localhost): '
   read -r domain < /dev/tty || domain=""
-  [ -n "$domain" ] && sed -i.bak "s/^DOMAIN=.*/DOMAIN=$domain/" .env && rm -f .env.bak
+  # Sin dominio, Caddy sirve https://localhost con un certificado local
+  sed -i.bak "s/^DOMAIN=.*/DOMAIN=${domain:-localhost}/" .env && rm -f .env.bak
 fi
 
 say "Descargando e iniciando AstroCitas…"
