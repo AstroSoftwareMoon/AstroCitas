@@ -40,7 +40,12 @@ export class ServerError extends Error {
 
 export function normalizeServerUrl(input: string): string {
   let u = input.trim().replace(/\/+$/, '');
-  if (!/^https?:\/\//i.test(u)) u = `https://${u}`;
+  if (!/^https?:\/\//i.test(u)) {
+    // Una IP o un nombre local (servidor en casa sin dominio) va por http; un dominio, por https.
+    const host = u.split(/[/:]/)[0]!.toLowerCase();
+    const local = /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host === 'localhost' || host.endsWith('.local') || !host.includes('.');
+    u = `${local ? 'http' : 'https'}://${u}`;
+  }
   return u;
 }
 

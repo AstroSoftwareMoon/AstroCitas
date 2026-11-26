@@ -27,6 +27,20 @@ El script hace lo siguiente:
 
 Antes de lanzarlo, apunta un registro DNS `A`/`AAAA` de tu dominio (p. ej. `citas.tudominio.es`) a la IP del servidor y abre los puertos 80 y 443.
 
+### Sin dominio (red local)
+
+Si no tienes dominio, pulsa **Intro** cuando el script lo pregunte: detecta la IP del equipo
+(p. ej. `192.168.1.40`) y al terminar te dice exactamente qué dirección usar, por ejemplo `http://192.168.1.40`.
+Funciona para todos los dispositivos conectados a la misma red (wifi del negocio o de casa):
+
+- **App de escritorio y Android:** «Conectar a mi servidor» → escribe esa dirección (basta con la IP).
+- **iPhone / iPad o cualquier navegador:** abre la dirección en Safari/Chrome y usa la app completa
+  desde la web. En el iPhone: *Compartir → Añadir a pantalla de inicio* para tenerla como una app.
+  Sin HTTPS no hay modo sin conexión en el navegador; las apps nativas sí lo tienen.
+
+Consejo: reserva la IP del equipo en el router para que no cambie. Si cambia, edita `PUBLIC_URL`
+en `~/astrocitas/.env` y ejecuta `docker compose up -d`. Para acceder desde fuera de tu red usa un dominio.
+
 Al terminar, abre `https://citas.tudominio.es`, elige **Conectar a mi servidor** y crea la cuenta de administrador. Si ya usabas la app en modo local, el asistente te ofrece subir tus datos al servidor (se fusionan sin pérdidas y se verifica el recuento).
 
 ## 2. Instalación manual con Docker Compose

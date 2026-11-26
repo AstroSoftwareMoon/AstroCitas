@@ -4,7 +4,17 @@ import { AstroApp, type OpenedStore } from '@astrocitas/ui';
 import { SqlAdapter } from '@astrocitas/core/sql';
 import { openNativeSqlite } from './tauri-driver';
 import { tauriPlatform, checkForUpdates } from './platform';
+import { fetch as nativeFetch } from '@tauri-apps/plugin-http';
 import './index.css';
+
+// Las peticiones al servidor propio van por Rust (plugin-http): así funcionan también con
+// http://IP-local (sin dominio ni certificado), que el WebView/Android bloquearían.
+const webFetch = globalThis.fetch.bind(globalThis);
+globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  const external = /^https?:\/\//i.test(url) && !/^https?:\/\/(tauri|ipc)\.localhost/i.test(url);
+  return external ? nativeFetch(input, init) : webFetch(input, init);
+}) as typeof fetch;
 
 async function openLocal(password?: string): Promise<OpenedStore> {
   const driver = await openNativeSqlite(password);

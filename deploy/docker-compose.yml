@@ -1,5 +1,5 @@
 # AstroCitas autohospedado: app + Caddy (HTTPS automático con Let's Encrypt).
-#   1. cp .env.example .env  y edita DOMAIN y ASTRO_SECRET
+#   1. cp .env.example .env  y edita DOMAIN (o SITE/PUBLIC_URL sin dominio) y ASTRO_SECRET
 #   2. docker compose up -d
 # Opcional: PostgreSQL y Redis →  docker compose --profile postgres --profile redis up -d
 #   (y descomenta DATABASE_URL / REDIS_URL en .env)
@@ -9,7 +9,7 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      PUBLIC_URL: https://${DOMAIN}
+      PUBLIC_URL: ${PUBLIC_URL:-https://${DOMAIN}}
     volumes:
       - astrocitas-data:/data
     expose:
@@ -28,7 +28,7 @@ services:
       - "443:443"
       - "443:443/udp"
     environment:
-      DOMAIN: ${DOMAIN}
+      SITE: ${SITE:-${DOMAIN}}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
